@@ -1,0 +1,14 @@
+seed: 0
+instruction: "Open the drawer, place the plate and mug, then hand the fork to the left arm."
+episode_seconds: 30
+camera:
+  width: 640
+  height: 480
+randomization:
+  object_xy_m: 0.025
+  friction_range: [0.6, 1.2]
+  mass_scale_range: [0.8, 1.2]
+planner:
+  backend: deterministic
+  replan_after_each_skill: true
+

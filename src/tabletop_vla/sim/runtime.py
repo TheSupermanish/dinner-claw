@@ -111,7 +111,9 @@ class Simulation:
         return self.state()
 
     def start_task(self, seed, name="cup-place", close_gripper=True):
-        if name not in {"cup-place", "camera-cup-place", "learned-cup-place", "learned-cup-safe-place", "drawer-open"}:
+        if name not in {"cup-place", "camera-cup-place", "learned-cup-place",
+                        "learned-cup-safe-place", "drawer-open",
+                        "fork-retrieve", "spoon-retrieve"}:
             raise ValueError("Only the implemented cup tasks are currently executable")
         if name.startswith("learned-"):
             if not close_gripper:
@@ -126,6 +128,12 @@ class Simulation:
 
             prepare_workcell(self, seed)
             self.task = DrawerOpen(self, close_gripper=close_gripper)
+        elif name.endswith("-retrieve"):
+            from tabletop_vla.sim.cutlery import CutleryRetrieve
+            from tabletop_vla.sim.drawer import prepare_workcell
+
+            prepare_workcell(self, seed)
+            self.task = CutleryRetrieve(self, name.split("-")[0], close_gripper=close_gripper)
         elif name.startswith("learned-"):
             from tabletop_vla.sim.learned import LearnedCup
 

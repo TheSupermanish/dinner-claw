@@ -211,8 +211,28 @@ def build_scene(source: Path = SOURCE, output: Path = OUTPUT) -> Path:
                 "name": f"{obj}_geom",
                 "type": "box",
                 "size": "0.008 0.05 0.003",
-                "mass": "0.025",
+                "mass": "0.015",
                 "rgba": "0.72 0.78 0.84 1",
+            },
+        )
+        # A raised handle, the way real cutlery has one. Measured 2026-09-14: the bare
+        # 6 mm blade lying on the drawer floor cannot be grasped, because the 15-32 mm
+        # jaw pads would have to penetrate the floor to straddle it. The jaws skidded
+        # the blade sideways at 7.6 N instead of lifting it. The handle sits on top of
+        # the blade at one end and gives the jaws 16 mm of height clear of the floor.
+        # Same precedent as the cup, which also needed a graspable compound geometry.
+        ET.SubElement(
+            body,
+            "geom",
+            {
+                "name": f"{obj}_handle",
+                "type": "box",
+                "pos": "0 -0.032 0.011",
+                "size": "0.007 0.018 0.008",
+                "mass": "0.010",
+                "rgba": "0.72 0.78 0.84 1",
+                "condim": "4",
+                "friction": "1 0.01 0.001",
             },
         )
     # Dormant housing geometry is activated only by the drawer workcell reset.

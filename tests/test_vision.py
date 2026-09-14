@@ -55,30 +55,45 @@ def test_real_pixels_drive_verified_pickup(seed):
 
 
 def test_missed_camera_grasp_retries_without_reset(monkeypatch):
+    """Trigger the recovery deterministically instead of relying on a chaotic seed.
+
+    This test used to pin seed 534, the only seed in 500-549 whose first grasp missed.
+    After the cutlery-handle and plate-rim scene revision on 2026-09-14 the camera
+    teacher scores 50/50 on 500-549 and 20/20 on 600-619, and NO seed in that range
+    retries any more (outputs/camera-retryscan-500-549.json). Pinning a seed that no
+    longer fails would assert nothing, so the first observation is perturbed on purpose.
+    The teacher must notice the empty grasp, re-observe, and recover WITHOUT resetting
+    the randomized scene, which is the property this test exists to protect.
+    """
+    from tabletop_vla.perception import cup as cup_module
+
+    real = cup_module.locate_blue_cup
+    calls = []
+
+    def one_bad_observation(rgb, **kwargs):
+        result = dict(real(rgb, **kwargs))
+        calls.append(1)
+        if len(calls) == 1:
+            # Offset stays inside the detector's validated region so the failure is a
+            # missed grasp, not a rejected observation.
+            result["xy"] = [result["xy"][0] - 0.03, result["xy"][1] - 0.03]
+        return result
+
+    monkeypatch.setattr(cup_module, "locate_blue_cup", one_bad_observation)
     sim = Simulation()
     try:
-        sim.start_task(534, "camera-cup-place")
+        sim.start_task(600, "camera-cup-place")
+
         def unexpected_reset(seed):
             pytest.fail("Recovery must not reset the randomized scene")
+
         monkeypatch.setattr(sim, "reset", unexpected_reset)
         for _ in range(40):
             sim.step(500)
             if sim.task.status != "running":
                 break
         result = sim.task.state()
-        # What this test is named for, and what it still guarantees: the recovery runs a
-        # second attempt in the SAME randomized episode, never by resetting the scene.
+        assert len(calls) >= 2, "the teacher never re-observed after the missed grasp"
         assert result["attempt"] == 2, result
-        # Seed 534 used to convert that retry into a success. Adding the cutlery handle
-        # geometry on 2026-09-14 perturbed contact ordering and it now misses the lift
-        # gate on the second attempt. This is recorded, not hidden: the aggregate camera
-        # teacher rate is unchanged at 49/50 on seeds 500-549
-        # (outputs/camera-regression-cutlery-500-549.json) and moved from 20/20 to 19/20
-        # on seeds 600-619 (outputs/camera-regression-cutlery-600-619.json). Seed 534 is
-        # the only seed in 500-549 that exercises the retry path at all, so there is no
-        # replacement seed to pin a success on.
-        assert result["status"] in {"succeeded", "failed"}, result
-        if result["status"] == "failed":
-            assert "lift" in (result["reason"] or "").lower(), result
     finally:
         sim.close()

@@ -133,7 +133,7 @@ def build_scene(source: Path = SOURCE, output: Path = OUTPUT) -> Path:
     world.extend([left, right])
 
     for name, pos, size, rgba in (
-        ("plate", "-0.12 0.02 0.752", "0.10 0.008", "0.92 0.92 0.88 1"),
+        ("plate", "-0.12 0.02 0.752", "0.10 0.004", "0.92 0.92 0.88 1"),
         ("mug", "0.20 -0.06 0.7603", "0.025 0.004", "0.18 0.48 0.86 1"),
         ("bottle", "0.28 0.12 0.84", "0.035 0.10", "0.25 0.72 0.52 1"),
     ):
@@ -145,6 +145,29 @@ def build_scene(source: Path = SOURCE, output: Path = OUTPUT) -> Path:
             "geom",
             {"name": f"{name}_geom", "type": geom_type, "size": size, "rgba": rgba, "mass": "0.12"},
         )
+        if name == "plate":
+            # A real dinner plate has a rim standing proud of a recessed base; the flat
+            # disc was the simplification. Measured 2026-09-14: the gripper hangs 50 mm
+            # below its own jaw midpoint, so a rim flush with the table (z 0.735-0.751)
+            # cannot be pinched. The probe drove 63-177 N into the plate and 39 N into
+            # the table, shoved it 19-149 mm, and never lifted it (0/10). This rim gives
+            # a 20 mm grip band starting 8 mm above the table, the same profile as the
+            # cutlery handle that does work.
+            geom.set("pos", "0 0 0")
+            geom.set("mass", "0.06")
+            for k in range(12):
+                angle = 2 * np.pi * k / 12
+                ET.SubElement(body, "geom", {
+                    "name": f"plate_rim_{k}",
+                    "type": "box",
+                    "pos": f"{0.094 * np.cos(angle)} {0.094 * np.sin(angle)} 0.014",
+                    "quat": f"{np.cos(angle / 2)} 0 0 {np.sin(angle / 2)}",
+                    "size": "0.010 0.025 0.010",
+                    "mass": "0.005",
+                    "rgba": rgba,
+                    "condim": "4",
+                    "friction": "1 0.01 0.001",
+                })
         if name == "mug":
             # A miniature square hollow cup: 50 mm width/height, 60 g total mass.
             # Separate convex walls preserve the cavity in MuJoCo contact physics.
@@ -227,8 +250,12 @@ def build_scene(source: Path = SOURCE, output: Path = OUTPUT) -> Path:
             {
                 "name": f"{obj}_handle",
                 "type": "box",
-                "pos": "0 -0.032 0.011",
-                "size": "0.007 0.018 0.008",
+                # Measured 2026-09-14: a 36 mm handle cannot host two grippers. The two
+                # moving pads (13 x 34 x 15 mm each) overlapped by 9.7 mm and needed
+                # 44-50 mm of handle between them, so the bimanual handoff was impossible.
+                # 56 mm, centred so the far end stays on the 100 mm blade.
+                "pos": "0 -0.022 0.011",
+                "size": "0.007 0.028 0.008",
                 "mass": "0.010",
                 "rgba": "0.72 0.78 0.84 1",
                 "condim": "4",

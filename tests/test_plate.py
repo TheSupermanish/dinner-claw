@@ -73,17 +73,27 @@ def test_phase_sets_name_real_phases():
         sim.close()
 
 
-def test_plate_teacher_fails_honestly_without_grasp_or_lift():
-    """Measured 2026-09-14: the 200 mm disc cannot be spanned by the 56 mm jaws
-    and the rim pinch shoves the plate at 63-177 N. The teacher must report that
-    failure, never a success."""
+def test_plate_is_grasped_and_lifted_but_the_carry_is_not_solved():
+    """Measured 2026-09-14, outputs/plate-restored-40-49.json.
+
+    The original assertions here encoded the pre-rim reality: a flat 200 mm disc flush
+    with the table could not be pinched at all, because the gripper hangs 50 mm below its
+    own jaw midpoint. The probe drove 39 N into the table and never lifted it, 0/10.
+
+    Modelling the plate the way a real plate is built, a base disc with a raised rim,
+    fixed the grasp outright: all ten seeds now hold and lift it for 1.06-3.26 s against
+    a 0.4 s gate. The task still scores 0/10 because the carry waypoint
+    "Raise to transit height" finds no accepted approach angle. That is recorded here
+    rather than asserted away, and the lift assertion below is what stops the grasp
+    silently regressing while the carry is being fixed.
+    """
     sim, result = run(40)
     try:
+        assert result["sustained_lift_s"] >= 0.4, result
+        assert sim.task.bilateral_s >= 0.15, result
+        # Honest: the full task does not yet succeed, and the reason is the carry.
         assert result["status"] == "failed", result
-        assert result["sustained_lift_s"] < 0.4
-        assert result["stable_release_s"] == 0.0
-        assert result["placement_error_m"] > 0.03
-        assert sim.task.bilateral_s < 0.15 or sim.task.sustained_lift < 0.2
+        assert "Unreachable" in (result["reason"] or ""), result
     finally:
         sim.close()
 

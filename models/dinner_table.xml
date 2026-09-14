@@ -189,7 +189,19 @@
     </body>
     <body name="plate" pos="-0.12 0.02 0.752">
       <freejoint />
-      <geom name="plate_geom" type="cylinder" size="0.10 0.008" rgba="0.92 0.92 0.88 1" mass="0.12" />
+      <geom name="plate_geom" type="cylinder" size="0.10 0.004" rgba="0.92 0.92 0.88 1" mass="0.06" pos="0 0 0" />
+      <geom name="plate_rim_0" type="box" pos="0.094 0.0 0.014" quat="1.0 0 0 0.0" size="0.010 0.025 0.010" mass="0.005" rgba="0.92 0.92 0.88 1" condim="4" friction="1 0.01 0.001" />
+      <geom name="plate_rim_1" type="box" pos="0.08140638795573724 0.04699999999999999 0.014" quat="0.9659258262890683 0 0 0.25881904510252074" size="0.010 0.025 0.010" mass="0.005" rgba="0.92 0.92 0.88 1" condim="4" friction="1 0.01 0.001" />
+      <geom name="plate_rim_2" type="box" pos="0.047000000000000014 0.08140638795573722 0.014" quat="0.8660254037844387 0 0 0.49999999999999994" size="0.010 0.025 0.010" mass="0.005" rgba="0.92 0.92 0.88 1" condim="4" friction="1 0.01 0.001" />
+      <geom name="plate_rim_3" type="box" pos="5.7558399559925604e-18 0.094 0.014" quat="0.7071067811865476 0 0 0.7071067811865475" size="0.010 0.025 0.010" mass="0.005" rgba="0.92 0.92 0.88 1" condim="4" friction="1 0.01 0.001" />
+      <geom name="plate_rim_4" type="box" pos="-0.046999999999999986 0.08140638795573724 0.014" quat="0.5000000000000001 0 0 0.8660254037844386" size="0.010 0.025 0.010" mass="0.005" rgba="0.92 0.92 0.88 1" condim="4" friction="1 0.01 0.001" />
+      <geom name="plate_rim_5" type="box" pos="-0.08140638795573724 0.04699999999999999 0.014" quat="0.25881904510252074 0 0 0.9659258262890683" size="0.010 0.025 0.010" mass="0.005" rgba="0.92 0.92 0.88 1" condim="4" friction="1 0.01 0.001" />
+      <geom name="plate_rim_6" type="box" pos="-0.094 1.1511679911985121e-17 0.014" quat="6.123233995736766e-17 0 0 1.0" size="0.010 0.025 0.010" mass="0.005" rgba="0.92 0.92 0.88 1" condim="4" friction="1 0.01 0.001" />
+      <geom name="plate_rim_7" type="box" pos="-0.08140638795573725 -0.04699999999999998 0.014" quat="-0.25881904510252063 0 0 0.9659258262890683" size="0.010 0.025 0.010" mass="0.005" rgba="0.92 0.92 0.88 1" condim="4" friction="1 0.01 0.001" />
+      <geom name="plate_rim_8" type="box" pos="-0.04700000000000004 -0.08140638795573721 0.014" quat="-0.49999999999999983 0 0 0.8660254037844387" size="0.010 0.025 0.010" mass="0.005" rgba="0.92 0.92 0.88 1" condim="4" friction="1 0.01 0.001" />
+      <geom name="plate_rim_9" type="box" pos="-1.726751986797768e-17 -0.094 0.014" quat="-0.7071067811865475 0 0 0.7071067811865476" size="0.010 0.025 0.010" mass="0.005" rgba="0.92 0.92 0.88 1" condim="4" friction="1 0.01 0.001" />
+      <geom name="plate_rim_10" type="box" pos="0.047000000000000014 -0.08140638795573722 0.014" quat="-0.8660254037844387 0 0 0.49999999999999994" size="0.010 0.025 0.010" mass="0.005" rgba="0.92 0.92 0.88 1" condim="4" friction="1 0.01 0.001" />
+      <geom name="plate_rim_11" type="box" pos="0.08140638795573721 -0.04700000000000004 0.014" quat="-0.9659258262890682 0 0 0.258819045102521" size="0.010 0.025 0.010" mass="0.005" rgba="0.92 0.92 0.88 1" condim="4" friction="1 0.01 0.001" />
     </body>
     <body name="mug" pos="0.20 -0.06 0.7603">
       <freejoint />
@@ -217,12 +229,12 @@
     <body name="fork" pos="-0.045 0.25 0.766">
       <freejoint />
       <geom name="fork_geom" type="box" size="0.008 0.05 0.003" mass="0.015" rgba="0.72 0.78 0.84 1" />
-      <geom name="fork_handle" type="box" pos="0 -0.032 0.011" size="0.007 0.018 0.008" mass="0.010" rgba="0.72 0.78 0.84 1" condim="4" friction="1 0.01 0.001" />
+      <geom name="fork_handle" type="box" pos="0 -0.022 0.011" size="0.007 0.028 0.008" mass="0.010" rgba="0.72 0.78 0.84 1" condim="4" friction="1 0.01 0.001" />
     </body>
     <body name="spoon" pos="0.045 0.25 0.766">
       <freejoint />
       <geom name="spoon_geom" type="box" size="0.008 0.05 0.003" mass="0.015" rgba="0.72 0.78 0.84 1" />
-      <geom name="spoon_handle" type="box" pos="0 -0.032 0.011" size="0.007 0.018 0.008" mass="0.010" rgba="0.72 0.78 0.84 1" condim="4" friction="1 0.01 0.001" />
+      <geom name="spoon_handle" type="box" pos="0 -0.022 0.011" size="0.007 0.028 0.008" mass="0.010" rgba="0.72 0.78 0.84 1" condim="4" friction="1 0.01 0.001" />
     </body>
     <geom name="cabinet_left" type="box" pos="0 0 -3" size="0.008 0.087 0.048" rgba="0.22 0.26 0.30 1" />
     <geom name="cabinet_right" type="box" pos="0 0 -3" size="0.008 0.087 0.048" rgba="0.22 0.26 0.30 1" />

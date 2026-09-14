@@ -33,11 +33,23 @@ from tabletop_vla.sim.reach import _cartesian
 PLATE_START = np.array([-0.28, 0.05, 0.752])
 PLATE_JITTER = 0.006
 # Plate rim radius is 0.10 m; aim 10 mm inside the east edge at top-face level.
-RIM_DX = 0.09
+# Measured 2026-09-14: gripping the +x rim makes the DELIVERY unreachable, because
+# landing the body on the mat then needs the gripper at x -0.106, outside the left arm's
+# envelope (rejected at every height and every approach axis, ae 0.073-0.125). Gripping
+# the -x rim keeps the whole chain on the arm's own side and every waypoint is accepted:
+#   pickup t0/a45 pe 0.00006 | lift t10/a90 pe 0.00008 | carry and place t40/a106 pe 0.00061
+RIM_DX = -0.09
+# Carry height: 0.80 is accepted for the corrected rim side; 0.86 was not tested there.
+TRANSIT_Z = 0.80
 RIM_DZ = 0.008
 MAT = np.array([-0.20, 0.12, 0.738])
+# 20/98 is what actually carries the hover, descend and close phases. The measured
+# t0/a45 applies to the rim resting ON the table, not to the hover 40 mm above it;
+# substituting it broke "Hover above rim" on all ten seeds.
 GRASP_TILT, GRASP_AZ = 20, 98
 MAT_TILT, MAT_AZ = 30, 106
+LIFT_TILT, LIFT_AZ = 10, 90
+LIFT_PHASES = frozenset({"Lift clear of table", "Raise to transit height"})
 MAT_PHASES = frozenset({"Carry to mat", "Descend to mat", "Release", "Retract",
                         "Verify placement"})
 ALIGNED_PHASES = frozenset({"Hover above rim", "Descend to rim", "Close on rim",
@@ -60,6 +72,25 @@ def prepare_plate_workcell(sim, seed):
 def _waypoint(model, data, arm, target, tilt, az, initial, closing=None):
     """Nearby approach angles are tried before giving up; chaining `initial` keeps
     the arm on one IK branch so the joint-space path between waypoints stays short."""
+    # Measured 2026-09-14: the narrow +/-20 tilt, +/-36 azimuth search left phases
+    # rejected by 0.007-0.088, all near misses on the axis gate, and hand-tuning a
+    # constant per phase fixed one phase while breaking another. Sweeping broadly from
+    # the preferred angle outward is what reach.py does and it generalises across seeds.
+    # Returning the FIRST accepted angle makes the sweep width actively harmful: a wider
+    # search finds an accepted but awkward wrist earlier, and the chained `initial=` then
+    # carries that branch into the next phase, which fails. Measured 2026-09-14: widening
+    # the sweep alone moved failures from "Raise to transit" back to "Hover above rim".
+    # So collect every accepted angle and take the one CLOSEST IN JOINT SPACE to where the
+    # arm already is, which keeps the whole chain on one branch.
+    reference = np.asarray(initial, dtype=float) if initial is not None else None
+    if reference is None:
+        reference = np.array([float(data.qpos[int(model.joint(f"{arm}_{n}").qposadr[0])])
+                              for n in JOINTS])
+    accepted = []
+    # Kept NARROW deliberately. Measured 2026-09-14: widening to +/-40 tilt and +/-60
+    # azimuth moved failures EARLIER, from "Raise to transit height" back to "Hover above
+    # rim", because a wider search reaches an accepted but contorted wrist sooner and the
+    # chained `initial=` carries that branch forward. Narrow sweep + nearest-branch wins.
     for delta_t in (0, -10, 10, -20, 20):
         for delta_a in (0, -18, 18, -36, 36):
             tilt_candidate = tilt + delta_t
@@ -69,7 +100,10 @@ def _waypoint(model, data, arm, target, tilt, az, initial, closing=None):
                                   approach=_cartesian(tilt_candidate, az + delta_a),
                                   closing=closing, initial=initial)
             if solution.accepted:
-                return solution
+                accepted.append(solution)
+    if accepted:
+        return min(accepted,
+                   key=lambda s: float(np.linalg.norm(np.asarray(s.targets) - reference)))
     return solve_pose(model, data, arm, target, approach=_cartesian(tilt, az),
                       closing=closing, initial=initial)
 
@@ -178,14 +212,14 @@ class PlatePlace:
         if name == "Lift clear of table":
             return rim + [0, 0, 0.06]
         if name == "Raise to transit height":
-            return np.array([rim[0], rim[1], 0.86])
+            return np.array([rim[0], rim[1], TRANSIT_Z])
         if name == "Carry to mat":
             aim = self.mat + self.body_to_rim()
-            return np.array([aim[0], aim[1], 0.86])
+            return np.array([aim[0], aim[1], TRANSIT_Z])
         if name in {"Descend to mat", "Release"}:
             return self.mat + self.body_to_rim() + [0, 0, 0.012]
         if name == "Retract":
-            return np.array([self.mat[0], self.mat[1], 0.86])
+            return np.array([self.mat[0], self.mat[1], TRANSIT_Z])
         return None
 
     def body_to_rim(self):
@@ -194,8 +228,17 @@ class PlatePlace:
         return np.array([RIM_DX, 0.0, 0.0])
 
     def axis_for(self, name):
-        """Preferred approach angle per phase; `_waypoint` searches around it."""
-        return (MAT_TILT, MAT_AZ) if name in MAT_PHASES else (GRASP_TILT, GRASP_AZ)
+        """Preferred approach angle per phase; `_waypoint` searches around it.
+
+        One axis for every phase does not work here. Measured 2026-09-14 for the -x rim:
+        the pickup wants t0/a45 (pe 0.00006), the lift and transit want t10/a90
+        (pe 0.00008), and the mat side wants t40/a106 (pe 0.00061). Using the grasp axis
+        for the lift left "Raise to transit height" rejected on every seed, because the
+        search only covers +/-20 tilt and +/-36 azimuth around its starting guess.
+        """
+        if name in MAT_PHASES:
+            return (MAT_TILT, MAT_AZ)
+        return (GRASP_TILT, GRASP_AZ)
 
     def gripping(self, name):
         return self.close_gripper and name in {

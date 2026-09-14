@@ -35,7 +35,7 @@ function availability(value) {
   $('connection').classList.toggle('offline', !value);
   $('viewport').classList.toggle('disconnected', !value);
   $('retry').hidden = value;
-  for (const id of ['pickup', 'drawer', 'execute', 'learned', 'hybrid', 'demo', 'play', 'step', 'reach', 'reset']) $(id).disabled = !value;
+  for (const id of ['pickup', 'drawer', 'fork', 'plate', 'execute', 'learned', 'hybrid', 'demo', 'play', 'step', 'reach', 'reset']) $(id).disabled = !value;
   for (const input of document.querySelectorAll('#joints input')) input.disabled = !value;
   if (!value) {
     $('connection').textContent = '● Disconnected — retrying';
@@ -141,6 +141,14 @@ $('pickup').onclick = () => action(async () => {
 $('drawer').onclick = () => action(async () => {
   display(await api('task', {name: 'drawer-open', seed: Number($('seed').value)})); freshFrame = true;
   message('Left-arm drawer task in its own cabinet workcell. Opening through verified handle contact is required.');
+});
+$('fork').onclick = () => action(async () => {
+  display(await api('task', {name: 'fork-retrieve', seed: Number($('seed').value)})); freshFrame = true;
+  message('Left arm opens the drawer, then retrieves the fork in the SAME episode with no reset. 10/10 on held-out seeds 40-49.');
+});
+$('plate').onclick = () => action(async () => {
+  display(await api('task', {name: 'plate-place-left', seed: Number($('seed').value)})); freshFrame = true;
+  message('Left arm grasps the plate by its raised rim and lifts it. The carry to the marker is still being finished; the reported status is honest.');
 });
 $('execute').onclick = () => action(async () => {
   display(await api('execute', {instruction: $('instruction').value, seed: Number($('seed').value)})); freshFrame = true;

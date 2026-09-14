@@ -36,9 +36,16 @@ def test_workcell_parks_plate_before_episode_without_touching_geometry():
         plate = sim.data.xpos[sim.model.body("plate").id].copy()
         np.testing.assert_allclose(plate[:2], PLATE_START[:2], atol=PLATE_JITTER + 1e-9)
         assert plate[2] == pytest.approx(0.752)
-        # The mat target and the scene geometry are untouched by the workcell.
+        # The workcell DOES relocate the mat target, deliberately and declared. Measured
+        # 2026-09-15: the authored plate_mat at [-0.20, 0.12] is not clear of the drawer.
+        # A 100 mm-radius plate centred there reaches y 0.22 while the drawer spans
+        # y 0.167-0.333, so the plate came to rest ON the drawer, 22-35 mm above the
+        # table. What must stay true is that the move is declared in the episode result
+        # and that no scene GEOMETRY is touched.
         np.testing.assert_allclose(
-            sim.data.site("plate_mat").xpos, [-0.20, 0.12, 0.737], atol=1e-6)
+            sim.data.site("plate_mat").xpos, [-0.14, 0.0, 0.737], atol=1e-6)
+        assert sim.variation["plate_workcell"]["plate_mat_moved_clear_of_drawer"] == [
+            -0.14, 0.0, 0.737]
         np.testing.assert_array_equal(sim.model.geom_pos, baseline_geom)
         np.testing.assert_array_equal(sim.model.body_pos, baseline_body)
         assert sim.variation["plate_workcell"]["plate_start"][:2] == pytest.approx(
@@ -91,20 +98,32 @@ def test_plate_is_grasped_and_lifted_but_the_carry_is_not_solved():
     try:
         assert result["sustained_lift_s"] >= 0.4, result
         assert sim.task.bilateral_s >= 0.15, result
-        # Honest: the full task does not yet succeed, and the reason is the carry.
+        # Honest: seed 40 does not yet complete. Measured 2026-09-15,
+        # outputs/plate-final-40-49.json: 1/10 overall, seed 49 succeeds outright
+        # (lift 5.63 s, stable release 2.55 s, placement error 20.5 mm). The rest reach
+        # the mat and fail the stable-release gate, because the retract drags the rim
+        # while moving back at release height.
         assert result["status"] == "failed", result
-        assert "Unreachable" in (result["reason"] or ""), result
+        assert result["stable_release_s"] == 0.0, result
     finally:
         sim.close()
 
 
 def test_open_gripper_control_cannot_reach_the_grasp_gate():
-    """A gate that cannot fail is not a gate."""
+    """A gate that cannot fail is not a gate.
+
+    Measured 2026-09-15: with the raised rim, a gripper held OPEN can still register
+    force-bearing contact on BOTH pads, because the rim sits between them without being
+    squeezed. So bilateral contact alone no longer discriminates a real grasp here, and
+    the sustained-lift gate is what rejects the control. That is recorded rather than
+    hidden, because it means bilateral contact must never be used as a success gate on
+    its own for this object.
+    """
     sim, result = run(40, close_gripper=False)
     try:
         assert result["status"] == "failed"
-        assert result["bilateral_contact_s"] == 0.0
         assert result["sustained_lift_s"] == 0.0
+        assert result["stable_release_s"] == 0.0
     finally:
         sim.close()
 

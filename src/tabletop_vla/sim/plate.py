@@ -33,27 +33,42 @@ from tabletop_vla.sim.reach import _cartesian
 PLATE_START = np.array([-0.28, 0.05, 0.752])
 PLATE_JITTER = 0.006
 # Plate rim radius is 0.10 m; aim 10 mm inside the east edge at top-face level.
-# Measured 2026-09-14: gripping the +x rim makes the DELIVERY unreachable, because
-# landing the body on the mat then needs the gripper at x -0.106, outside the left arm's
-# envelope (rejected at every height and every approach axis, ae 0.073-0.125). Gripping
-# the -x rim keeps the whole chain on the arm's own side and every waypoint is accepted:
-#   pickup t0/a45 pe 0.00006 | lift t10/a90 pe 0.00008 | carry and place t40/a106 pe 0.00061
-RIM_DX = -0.09
+# Measured 2026-09-15 IN THE PLATE WORKCELL (the earlier -0.09 choice was measured at the
+# plate's default reset position x=-0.115, but prepare_plate_workcell parks it at x=-0.28,
+# so the wrong rim side was picked). Both sides are reachable at nominal poses; what
+# decides it is DRIFT. The plate is dragged about 24 mm outward during the grasp, so the
+# grip must start with margin:
+#   +0.09 -> grip at x ~ -0.19, drift stays well inside the envelope
+#   -0.09 -> grip at x ~ -0.37, drift pushes "Raise to transit height" past the edge
+# Measured angles for +0.09: hover t10/a90, close t0/a0, lift t15/a90, transit t10/a90,
+# carry t40/a75, place t35/a75.
+RIM_DX = 0.09
 # Carry height: 0.80 is accepted for the corrected rim side; 0.86 was not tested there.
 TRANSIT_Z = 0.80
 RIM_DZ = 0.008
+# Authored site position. The live site is read at episode start, because the plate
+# workcell relocates it clear of the drawer (see prepare_plate_workcell).
 MAT = np.array([-0.20, 0.12, 0.738])
+RESTING_Z = 0.739
 # 20/98 is what actually carries the hover, descend and close phases. The measured
 # t0/a45 applies to the rim resting ON the table, not to the hover 40 mm above it;
 # substituting it broke "Hover above rim" on all ten seeds.
-GRASP_TILT, GRASP_AZ = 20, 98
-MAT_TILT, MAT_AZ = 30, 106
+GRASP_TILT, GRASP_AZ = 10, 90
+MAT_TILT, MAT_AZ = 10, 45
+# Retract gets its own measured axis. Inheriting the mat azimuth left the accepted angles
+# outside the search window, so a pose that IS reachable was reported unreachable. Measured
+# 2026-09-15 from the relocated mat: a small back-and-up move solves at t0/a0, pe 1e-05.
+RETRACT_TILT, RETRACT_AZ = 0, 0
 LIFT_TILT, LIFT_AZ = 10, 90
 LIFT_PHASES = frozenset({"Lift clear of table", "Raise to transit height"})
 MAT_PHASES = frozenset({"Carry to mat", "Descend to mat", "Release", "Retract",
                         "Verify placement"})
+# "Retract" belongs here even though the jaws are already open. Measured 2026-09-15 at
+# the retract pose [-0.11, 0.12, 0.828]: with the closing axis constrained there are 8
+# accepted approach angles (best t45/a75, pe 0.00096, ae 0.0142); with a FREE wrist
+# there are zero. Constraining the wrist helps here rather than hurting.
 ALIGNED_PHASES = frozenset({"Hover above rim", "Descend to rim", "Close on rim",
-                            "Carry to mat", "Descend to mat", "Release"})
+                            "Carry to mat", "Descend to mat", "Release", "Retract"})
 OPEN_GRIP = 0.85
 
 
@@ -66,7 +81,17 @@ def prepare_plate_workcell(sim, seed):
     sim.data.qpos[address:address + 3] = start
     sim.data.qpos[address + 3:address + 7] = [1, 0, 0, 0]
     mujoco.mj_forward(sim.model, sim.data)
-    sim.variation["plate_workcell"] = {"plate_start": start.tolist()}
+    # Measured 2026-09-15: the authored plate_mat at [-0.20, 0.12] is NOT clear of the
+    # drawer. The plate has a 100 mm radius so it reaches y 0.22, and the drawer spans
+    # y 0.167-0.333 at its default pose, so the plate came to rest ON the drawer, 22-35 mm
+    # above the table. The release gate's height check is what exposed it; without that
+    # check it looked like a placement-tolerance problem. Same failure the fork mat had.
+    # [-0.14, 0.0] clears the drawer by the plate's own radius and solves at carry t10/a45.
+    plate_mat = np.array([-0.14, 0.0, 0.737])
+    sim.model.site_pos[sim.model.site("plate_mat").id] = plate_mat
+    mujoco.mj_forward(sim.model, sim.data)
+    sim.variation["plate_workcell"] = {"plate_start": start.tolist(),
+                                       "plate_mat_moved_clear_of_drawer": plate_mat.tolist()}
 
 
 def _waypoint(model, data, arm, target, tilt, az, initial, closing=None):
@@ -151,7 +176,8 @@ class PlatePlace:
         self.grip_q = int(self.model.joint("left_gripper").qposadr[0])
         # Table top plus plate half-height: the plate rests at 0.743 m.
         self.rest_z = 0.735 + float(self.model.geom_size[self.plate_geom][1])
-        self.mat = MAT.copy()
+        site = self.model.site("plate_mat")
+        self.mat = np.array([float(site.pos[0]), float(site.pos[1]), RESTING_Z])
         self.start = self.data.xpos[self.body].copy()
         self.solution = None
         self.bilateral_s = self.current_contact = 0.0
@@ -217,9 +243,14 @@ class PlatePlace:
             aim = self.mat + self.body_to_rim()
             return np.array([aim[0], aim[1], TRANSIT_Z])
         if name in {"Descend to mat", "Release"}:
-            return self.mat + self.body_to_rim() + [0, 0, 0.012]
+            return self.mat + self.body_to_rim() + [0, 0, 0.005]
         if name == "Retract":
-            return np.array([self.mat[0], self.mat[1], TRANSIT_Z])
+            # Retract straight UP from the release pose. Targeting the bare mat dropped
+            # the 0.09 m rim offset every other mat phase carries, asking the arm to swing
+            # 90 mm sideways while retracting; measured 2026-09-15 that failed the axis
+            # gate on all ten seeds at an identical 0.0028 m position error.
+            aim = self.mat + self.body_to_rim()
+            return np.array([aim[0] - 0.06, aim[1] - 0.04, self.mat[2] + 0.05])
         return None
 
     def body_to_rim(self):
@@ -236,6 +267,8 @@ class PlatePlace:
         for the lift left "Raise to transit height" rejected on every seed, because the
         search only covers +/-20 tilt and +/-36 azimuth around its starting guess.
         """
+        if name == "Retract":
+            return (RETRACT_TILT, RETRACT_AZ)
         if name in MAT_PHASES:
             return (MAT_TILT, MAT_AZ)
         return (GRASP_TILT, GRASP_AZ)
@@ -330,7 +363,11 @@ class PlatePlace:
             self.lift_run = 0.0
         position = self.data.xpos[self.body]
         velocity = self.data.qvel[self.model.jnt_dofadr[self.model.body_jntadr[self.body]]:][:6]
-        if (np.linalg.norm(position[:2] - self.mat[:2]) < 0.03
+        # Height is not optional in this gate. The cutlery gate shipped without it earlier
+        # today and passed eleven seeds while the fork was resting on the OPEN DRAWER,
+        # 60 mm above the table. Same check as scoring.py:37 and cutlery.py.
+        on_table = abs(float(position[2]) - float(self.mat[2])) < 0.008
+        if (np.linalg.norm(position[:2] - self.mat[:2]) < 0.03 and on_table
                 and not (self.fingers & bodies) and bodies
                 and float(np.linalg.norm(velocity)) < 0.02):
             self.stable_release += self.model.opt.timestep

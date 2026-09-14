@@ -48,13 +48,22 @@ def prepare_workcell(sim, seed):
     model.body_mass[drawer] *= mass_scale
     model.body_inertia[drawer] *= mass_scale
     model.geom_friction[model.geom_bodyid == drawer, 0] = rng.uniform(0.7, 1.1)
+    # Measured 2026-09-14: pulling the cabinet to y 0.165 puts the authored `fork_mat`
+    # site (y +0.10) INSIDE the open drawer footprint (x -0.360..-0.100, y -0.013..0.153).
+    # Releasing there rests the fork on the drawer wall at z 0.79 instead of the table at
+    # z 0.738, which the height postcondition in cutlery.py rejects. Move the target clear
+    # of the drawer for this workcell only, and declare it in the episode result. Every
+    # candidate clear of the drawer is left-arm reachable; this one solves at 0.00001 m.
+    fork_mat = np.array([-0.32, -0.08, 0.737])
+    model.site_pos[model.site("fork_mat").id] = fork_mat
     pose = data.qpos.copy()
     mujoco.mj_setConst(model, data)
     data.qpos[:] = pose
     mujoco.mj_forward(model, data)
     sim.variation["drawer"] = {"center": center.tolist(), "damping": float(model.dof_damping[vid]),
                                "slide_friction": float(model.dof_frictionloss[vid]),
-                               "mass_scale": mass_scale}
+                               "mass_scale": mass_scale,
+                               "fork_mat_moved_clear_of_drawer": fork_mat.tolist()}
 
 
 class DrawerOpen:

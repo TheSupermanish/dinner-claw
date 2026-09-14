@@ -25,10 +25,14 @@ def prepare_workcell(sim, seed):
     model.opt.disableflags |= mujoco.mjtDisableBit.mjDSBL_MIDPHASE
     for name, x in (("left", -0.03), ("right", 0.03)):
         model.geom_pos[model.geom(f"drawer_mount_{name}").id] = [x, -0.12, 0.02]
+    # Measured 2026-09-14: at a 0.09 m top offset the left wrist jams on `cabinet_top`
+    # (11-47 N) at every approach angle that reaches the fork, so cutlery retrieval was
+    # geometrically impossible. A 0.18 m offset is the smallest swept value at which the
+    # gripper reaches the fork with no cabinet contact (0.15 m still jams at 42.9 N).
     for name, offset in (("left", [-0.147, 0, 0.035]),
                          ("right", [0.147, 0, 0.035]),
                          ("back", [0, 0.092, 0.035]),
-                         ("top", [0, 0, 0.09])):
+                         ("top", [0, 0, 0.18])):
         model.geom_pos[model.geom(f"cabinet_{name}").id] = center + offset
     for obj, position in (("plate", [0.0, 0.38, 0.752]),
                           ("fork", center + [-0.045, 0, 0.014]),

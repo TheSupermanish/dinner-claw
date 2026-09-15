@@ -131,10 +131,23 @@ class BimanualPlateLift:
         self.started = float(self.data.time)
         self.phase, self.phase_started = -1, self.started
         self.body = self.model.body("plate").id
-        self.pads = {arm: {self.model.body(f"{arm}_gripper").id,
-                           self.model.body(f"{arm}_moving_jaw_so101_v1").id}
+        self.pads = {arm: {int(self.model.geom(f"{arm}_fixed_pad").id),
+                           int(self.model.geom(f"{arm}_moving_pad").id)}
                      for arm in ARMS}
         self.all_pads = set().union(*self.pads.values())
+        # Every geom belonging to either arm. The GRASP gate wants the four pads
+        # specifically, but the SUPPORT gate wants "nothing outside the robot is
+        # holding this up", and those are different sets. Measured 2026-09-15:
+        # demanding the pads be the ONLY contact dropped both seed sets to 2/10,
+        # because `right_moving_neck`, the jaw structure directly behind the pad,
+        # legitimately touches the plate for 22 samples of a good grasp. The table
+        # is the contact that actually disqualifies a lift.
+        self.robot_geoms = {
+            g for g in range(self.model.ngeom)
+            if (mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_BODY,
+                                  int(self.model.geom_bodyid[g])) or "").startswith(
+                ("left_", "right_"))
+        }
         self.actuators = {arm: [self.model.actuator(f"{arm}_{j}").id for j in JOINTS]
                           for arm in ARMS}
         self.grip = {arm: self.model.actuator(f"{arm}_gripper").id for arm in ARMS}
@@ -208,20 +221,35 @@ class BimanualPlateLift:
     # -- bookkeeping ------------------------------------------------------------
 
     def contacts(self):
-        """Bodies pressing on the plate with a force-bearing contact."""
-        bodies, force = set(), np.zeros(6)
+        """GEOMS pressing on the plate with a force-bearing contact.
+
+        Geoms, not bodies. The `left_gripper` body owns four collidable geoms,
+        only one of which is a pad: `left_fixed_pad`, plus `left_fixed_neck`,
+        `left_palm` and an unnamed one. A body-level test therefore counted a palm
+        or a wrist brushing the plate as a finger grasp, which is the same
+        whole-body confusion that let a fork score as grasped by its tines.
+        """
+        geoms, force = set(), np.zeros(6)
         for i, contact in enumerate(self.data.contact):
-            a, b = self.model.geom_bodyid[[contact.geom1, contact.geom2]]
-            if self.body in (a, b):
+            pair = (int(contact.geom1), int(contact.geom2))
+            owners = self.model.geom_bodyid[list(pair)]
+            if self.body in owners:
                 mujoco.mj_contactForce(self.model, self.data, i, force)
                 if force[0] > 0.02:
-                    bodies.add(int(b if a == self.body else a))
-        return bodies
+                    geoms.add(pair[1] if int(owners[0]) == self.body else pair[0])
+        return geoms
 
     def tilt_deg(self):
-        """Angle between the plate's own z axis and world up."""
+        """Angle between the plate's own z axis and world up, 0 to 180.
+
+        NOT `abs(zaxis[2])`. With the absolute value an upside-down plate reports
+        0 degrees of tilt and sails through the levelness gate; measured
+        2026-09-15, a plate at quaternion [0, 1, 0, 0] accumulated 0.44 s of
+        "level lift" while inverted. A plate carrying food does not get to be
+        upside down, so the flip has to read as 180, not as perfect.
+        """
         zaxis = self.data.xmat[self.body].reshape(3, 3)[:, 2]
-        return float(np.rad2deg(np.arccos(np.clip(abs(float(zaxis[2])), -1.0, 1.0))))
+        return float(np.rad2deg(np.arccos(np.clip(float(zaxis[2]), -1.0, 1.0))))
 
     @property
     def lift(self):
@@ -298,12 +326,17 @@ class BimanualPlateLift:
                           f"{self.peak_tilt_deg:.1f} deg")
                 return
             if self.phase == len(self.phases) - 1:
-                if self.sustained_lift >= 0.4 and self.stable_release >= 0.3:
+                if (self.sustained_lift >= 0.4 and self.stable_release >= 0.3
+                        and self.peak_tilt_deg < LEVEL_LIMIT_DEG):
                     self.status, self.sim.running = "succeeded", False
                 else:
+                    # Peak tilt is a success condition, not decoration. Without it a
+                    # run could earn 0.4 s of level lift, tip to 50 degrees, and still
+                    # pass on a later stable release, because nothing carried the
+                    # tipping forward.
                     self.fail(f"Lift {self.sustained_lift:.2f} s, stable release "
-                              f"{self.stable_release:.2f} s, peak tilt "
-                              f"{self.peak_tilt_deg:.1f} deg")
+                              f"{self.stable_release:.2f} s, peak tilt while airborne "
+                              f"{self.peak_tilt_deg:.1f} deg of {LEVEL_LIMIT_DEG:.0f}")
                 return
             self.enter(self.phase + 1)
             if self.status != "running":
@@ -321,10 +354,10 @@ class BimanualPlateLift:
     def after_step(self):
         if self.status != "running":
             return
-        bodies = self.contacts()
+        geoms = self.contacts()
         # All FOUR pads, not two. Two pads bearing force is one arm's grasp, which is
         # the configuration that levers the plate rather than lifting it.
-        held = self.all_pads <= bodies
+        held = self.all_pads <= geoms
         if held:
             self.current_contact += self.model.opt.timestep
             self.quad_s = max(self.quad_s, self.current_contact)
@@ -334,15 +367,25 @@ class BimanualPlateLift:
         self.peak_lift = max(self.peak_lift, self.lift)
         # Height alone is not evidence of a lift, and neither is height plus contact:
         # a plate pivoting on its far rim raises its centre while still resting on the
-        # table. Require the pads to be the only force-bearing contact AND the plate to
-        # stay level, which a pivot cannot do.
-        unsupported = held and 0 not in bodies
-        if unsupported and self.lift > 0.025 and tilt < LEVEL_LIMIT_DEG:
+        # table. Nothing OUTSIDE THE ROBOT may bear force. An explicit "not the world"
+        # test was NOT enough: the world is body 0, but the drawer is body 19, and
+        # measured 2026-09-15 the drawer holds a level plate at z 0.806 with no world
+        # contact at all. That is the fork-on-the-open-drawer failure a third time, so
+        # the rule is a whitelist of robot geoms, not a blacklist of known supports.
+        unsupported = held and not (geoms - self.robot_geoms)
+        airborne = unsupported and self.lift > 0.025
+        # Measured over EVERY airborne sample, not only the ones inside the bound.
+        # Updating this only where `tilt < LEVEL_LIMIT_DEG` already held made it
+        # incapable of exceeding the limit, so it reported a reassuring 12.4-14.0
+        # degrees by construction and said nothing about how far the plate really
+        # tipped. A statistic that cannot fail is not a measurement.
+        if airborne:
+            self.peak_tilt_deg = max(self.peak_tilt_deg, tilt)
+        if airborne and tilt < LEVEL_LIMIT_DEG:
             self.lift_run += self.model.opt.timestep
             if self.lift_run > self.sustained_lift:
                 self.sustained_lift = self.lift_run
                 self.tilt_at_peak_lift_deg = tilt
-            self.peak_tilt_deg = max(self.peak_tilt_deg, tilt)
         else:
             self.lift_run = 0.0
         position = self.data.xpos[self.body]
@@ -353,7 +396,7 @@ class BimanualPlateLift:
         # the fork-on-the-open-drawer result and the single-arm plate-on-the-drawer one.
         on_table = abs(float(position[2]) - float(self.mat[2])) < 0.006
         if (float(np.linalg.norm(position[:2] - self.mat[:2])) < 0.03 and on_table
-                and not (self.all_pads & bodies) and bodies
+                and not (self.all_pads & geoms) and geoms
                 and tilt < LEVEL_LIMIT_DEG
                 and float(np.linalg.norm(velocity)) < 0.02):
             self.stable_release += self.model.opt.timestep

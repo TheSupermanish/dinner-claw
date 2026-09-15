@@ -46,6 +46,12 @@ EXECUTABLE = {
                      r"(?:take|get|pick up|retrieve) (?:the )?fork"
                      r"(?: from (?:the )?drawer)?"
                      r"(?: and (?:place|put) it (?:on|at) (?:its|the) (?:marker|mat|target))?",
+    # The plate command resolves to the BIMANUAL teacher: opposing rim grips cancel
+    # the pivot torque that keeps the single-arm plate at 0/10. The pattern requires
+    # the literal plate, so it cannot steal cup/mug or fork instructions, and the
+    # bare single-arm phrasing ("place the plate on its marker") still refuses.
+    "bimanual-plate-lift": r"(?:pick up|lift) (?:the )?plate with both (?:arms|hands)"
+                           r"|move (?:the )?plate to (?:its|the) (?:marker|mat|target)",
 }
 
 

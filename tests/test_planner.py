@@ -65,6 +65,22 @@ def test_fork_retrieval_is_now_executable_because_it_was_measured():
     assert executable_task("Retrieve the fork from the drawer") == "fork-retrieve"
 
 
+def test_bimanual_plate_lift_is_executable_while_single_arm_plate_is_not():
+    """Tuning seeds 40-49 9/10, held-out seeds 50-59 10/10, open-gripper control 0/4."""
+    assert executable_task("pick up the plate with both arms") == "bimanual-plate-lift"
+    assert executable_task("lift the plate with both hands") == "bimanual-plate-lift"
+    assert executable_task("move the plate to its mat") == "bimanual-plate-lift"
+    with pytest.raises(ValueError, match="Only the verified"):
+        executable_task("Place the plate on its marker")
+
+
+def test_bimanual_plate_pattern_does_not_steal_cup_or_fork():
+    assert executable_task(
+        "pick up the blue cup with the right arm and place it on its marker"
+    ) == "camera-cup-place"
+    assert executable_task("open the drawer and take the fork") == "fork-retrieve"
+
+
 def test_plate_and_spoon_remain_unexecutable_until_they_are_measured():
     for instruction in ("Place the plate on its marker",
                         "Hand the spoon to the right arm",

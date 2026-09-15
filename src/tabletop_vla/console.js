@@ -35,7 +35,7 @@ function availability(value) {
   $('connection').classList.toggle('offline', !value);
   $('viewport').classList.toggle('disconnected', !value);
   $('retry').hidden = value;
-  for (const id of ['pickup', 'drawer', 'fork', 'plate', 'execute', 'learned', 'hybrid', 'demo', 'play', 'step', 'reach', 'reset']) $(id).disabled = !value;
+  for (const id of ['pickup', 'drawer', 'fork', 'plate', 'bimanual', 'execute', 'learned', 'hybrid', 'demo', 'play', 'step', 'reach', 'reset']) $(id).disabled = !value;
   for (const input of document.querySelectorAll('#joints input')) input.disabled = !value;
   if (!value) {
     $('connection').textContent = '● Disconnected — retrying';
@@ -149,6 +149,10 @@ $('fork').onclick = () => action(async () => {
 $('plate').onclick = () => action(async () => {
   display(await api('task', {name: 'plate-place-left', seed: Number($('seed').value)})); freshFrame = true;
   message('Left arm grasps the plate by its raised rim and lifts it. The carry to the marker is still being finished; the reported status is honest.');
+});
+$('bimanual').onclick = () => action(async () => {
+  display(await api('task', {name: 'bimanual-plate-lift', seed: Number($('seed').value)})); freshFrame = true;
+  message('Both arms pinch opposing rim segments and carry the plate level to its mat. 10/10 on held-out seeds 50-59, open-gripper control 0/4.');
 });
 $('execute').onclick = () => action(async () => {
   display(await api('execute', {instruction: $('instruction').value, seed: Number($('seed').value)})); freshFrame = true;

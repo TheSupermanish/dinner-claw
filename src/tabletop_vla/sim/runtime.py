@@ -114,7 +114,7 @@ class Simulation:
         if name not in {"cup-place", "camera-cup-place", "learned-cup-place",
                         "learned-cup-safe-place", "drawer-open",
                         "fork-retrieve", "spoon-retrieve", "plate-place-left",
-                        "spoon-handoff"}:
+                        "bimanual-plate-lift", "spoon-handoff"}:
             raise ValueError("Only the implemented cup tasks are currently executable")
         if name.startswith("learned-"):
             if not close_gripper:
@@ -140,6 +140,14 @@ class Simulation:
 
             prepare_plate_workcell(self, seed)
             self.task = PlatePlace(self, close_gripper=close_gripper)
+        elif name == "bimanual-plate-lift":
+            from tabletop_vla.sim.bimanual_plate import (
+                BimanualPlateLift,
+                prepare_bimanual_workcell,
+            )
+
+            prepare_bimanual_workcell(self, seed)
+            self.task = BimanualPlateLift(self, close_gripper=close_gripper)
         elif name == "spoon-handoff":
             from tabletop_vla.sim.drawer import prepare_workcell
             from tabletop_vla.sim.handoff import SpoonHandoff

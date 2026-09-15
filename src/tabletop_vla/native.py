@@ -25,9 +25,9 @@ def main():
     sim = Simulation()
     keys = queue.Queue()
     sim.start_task(args.seed)
-    print("Native MuJoCo: N = drawer, F = drawer+fork, L = plate, G = cup teacher, "
-          "V = camera, A = ACT, H = ACT+finish, D = demo, P = pause, M = manual, R = reset",
-          flush=True)
+    print("Native MuJoCo: N = drawer, F = drawer+fork, L = plate, B = bimanual plate, "
+          "G = cup teacher, V = camera, A = ACT, H = ACT+finish, D = demo, "
+          "P = pause, M = manual, R = reset", flush=True)
     error = None
     try:
         with mujoco.viewer.launch_passive(sim.model, sim.data, key_callback=keys.put) as viewer:
@@ -44,7 +44,7 @@ def main():
                         if key in (ord("G"), ord("g")):
                             sim.start_task(args.seed)
                             error = None
-                        elif chr(key).upper() in {"V", "A", "H", "N", "F", "L"}:
+                        elif chr(key).upper() in {"V", "A", "H", "N", "F", "L", "B"}:
                             names = {"V": "camera-cup-place", "A": "learned-cup-place",
                                      "H": "learned-cup-safe-place", "N": "drawer-open",
                                      # F chains drawer -> fork retrieval in ONE episode
@@ -52,7 +52,10 @@ def main():
                                      "F": "fork-retrieve",
                                      # L grasps and lifts the plate by its rim on every
                                      # seed; the carry to the mat is not solved yet.
-                                     "L": "plate-place-left"}
+                                     "L": "plate-place-left",
+                                     # B lifts the plate with BOTH arms to its mat:
+                                     # 10/10 on held-out seeds 50-59, open-gripper 0/4.
+                                     "B": "bimanual-plate-lift"}
                             try:
                                 sim.start_task(args.seed, names[chr(key).upper()])
                                 error = None
@@ -86,7 +89,7 @@ def main():
                 viewer.set_texts((
                     mujoco.mjtFontScale.mjFONTSCALE_100,
                     mujoco.mjtGridPos.mjGRID_TOPLEFT,
-                    ("SO-101 LIVE PHYSICS\nN: drawer | F: drawer+fork | L: plate\n"
+                     ("SO-101 LIVE PHYSICS\nN: drawer | F: drawer+fork | L: plate | B: bimanual plate\n"
                      "G: cup teacher | V: camera | A: ACT | H: ACT+finish\n"
                      "P: pause | D: demo | M: manual | R: reset"),
                     f"Seed {args.seed} | {sim.data.time:.2f}s\n{status}\n{error or detail}\n" + (

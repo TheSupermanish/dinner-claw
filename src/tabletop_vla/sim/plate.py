@@ -24,6 +24,7 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
+from tabletop_vla.sim.cutlery import UNREACHED
 from tabletop_vla.sim.kinematics import JOINTS, gripper_geometry, solve_pose
 from tabletop_vla.sim.reach import _cartesian
 
@@ -55,20 +56,27 @@ RESTING_Z = 0.739
 # substituting it broke "Hover above rim" on all ten seeds.
 GRASP_TILT, GRASP_AZ = 10, 90
 MAT_TILT, MAT_AZ = 10, 45
-# Retract gets its own measured axis. Inheriting the mat azimuth left the accepted angles
-# outside the search window, so a pose that IS reachable was reported unreachable. Measured
-# 2026-09-15 from the relocated mat: a small back-and-up move solves at t0/a0, pe 1e-05.
+# Retract is split in two so the open jaws clear the rim VERTICALLY before moving
+# back. Measured 2026-09-15 from the relocated mat (release xy [-0.05, 0.0]): the
+# single diagonal move (60 mm back while only 50 mm above the mat) swept the open
+# jaws through the rim and dragged the placed plate 54-129 mm off its mat. The
+# straight-up pose [-0.05, 0.0, 0.789] solves at t10/a45 (pe 0.00018) and the
+# up-0.05-back-0.06 pose [-0.11, -0.04, 0.789] solves at t0/a0 (pe 0.00001), so
+# each sub-phase carries its own measured preferred angle (the _waypoint window
+# is only +/-20 tilt, +/-36 azimuth, so sharing one angle strands one of them).
+RETRACT_LIFT_TILT, RETRACT_LIFT_AZ = 10, 45
 RETRACT_TILT, RETRACT_AZ = 0, 0
 LIFT_TILT, LIFT_AZ = 10, 90
 LIFT_PHASES = frozenset({"Lift clear of table", "Raise to transit height"})
-MAT_PHASES = frozenset({"Carry to mat", "Descend to mat", "Release", "Retract",
-                        "Verify placement"})
-# "Retract" belongs here even though the jaws are already open. Measured 2026-09-15 at
+MAT_PHASES = frozenset({"Carry to mat", "Descend to mat", "Release", "Retract lift",
+                        "Retract back", "Verify placement"})
+# Both retract halves belong here even though the jaws are already open. Measured 2026-09-15 at
 # the retract pose [-0.11, 0.12, 0.828]: with the closing axis constrained there are 8
 # accepted approach angles (best t45/a75, pe 0.00096, ae 0.0142); with a FREE wrist
 # there are zero. Constraining the wrist helps here rather than hurting.
 ALIGNED_PHASES = frozenset({"Hover above rim", "Descend to rim", "Close on rim",
-                            "Carry to mat", "Descend to mat", "Release", "Retract"})
+                            "Carry to mat", "Descend to mat", "Release",
+                            "Retract lift", "Retract back"})
 OPEN_GRIP = 0.85
 
 
@@ -193,7 +201,8 @@ class PlatePlace:
             ("Carry to mat", 2.2),
             ("Descend to mat", 1.8),
             ("Release", 2.0),
-            ("Retract", 2.0),
+            ("Retract lift", 1.2),
+            ("Retract back", 1.2),
             ("Verify placement", 1.4),
         )
 
@@ -244,13 +253,23 @@ class PlatePlace:
             return np.array([aim[0], aim[1], TRANSIT_Z])
         if name in {"Descend to mat", "Release"}:
             return self.mat + self.body_to_rim() + [0, 0, 0.005]
-        if name == "Retract":
-            # Retract straight UP from the release pose. Targeting the bare mat dropped
-            # the 0.09 m rim offset every other mat phase carries, asking the arm to swing
-            # 90 mm sideways while retracting; measured 2026-09-15 that failed the axis
-            # gate on all ten seeds at an identical 0.0028 m position error.
-            aim = self.mat + self.body_to_rim()
-            return np.array([aim[0] - 0.06, aim[1] - 0.04, self.mat[2] + 0.05])
+        if name in {"Retract lift", "Retract back"}:
+            # Retract from where the jaws ACTUALLY are, not from where the mat says
+            # they should be. `body_to_rim()` is a fixed 90 mm offset, so a retract
+            # aimed at `mat + body_to_rim()` commands a sideways move equal to however
+            # far the plate drifted during the carry, and that sideways move IS the
+            # drag. Measured 2026-09-15 on seeds 40-49: splitting the retract into
+            # lift-then-back while still aiming at the mat left the placement error at
+            # 32-135 mm (1/10), statistically the same as the single diagonal move it
+            # replaced; the two runs where the retract failed to solve and therefore
+            # never executed left the plate at 7-49 mm. The phase is entered exactly
+            # once, so reading the live jaw midpoint here reads the release pose for
+            # "Retract lift" and the already-lifted pose for "Retract back".
+            here = gripper_geometry(self.model, self.data, "left").midpoint
+            straight_up = np.array([here[0], here[1], self.mat[2] + 0.05])
+            if name == "Retract lift":
+                return straight_up
+            return straight_up + [-0.06, -0.04, 0.0]
         return None
 
     def body_to_rim(self):
@@ -267,7 +286,9 @@ class PlatePlace:
         for the lift left "Raise to transit height" rejected on every seed, because the
         search only covers +/-20 tilt and +/-36 azimuth around its starting guess.
         """
-        if name == "Retract":
+        if name == "Retract lift":
+            return (RETRACT_LIFT_TILT, RETRACT_LIFT_AZ)
+        if name == "Retract back":
             return (RETRACT_TILT, RETRACT_AZ)
         if name in MAT_PHASES:
             return (MAT_TILT, MAT_AZ)
@@ -303,8 +324,9 @@ class PlatePlace:
             solution = _jaw_correct(self.model, self.data, "left", target, tilt, az,
                                     self.solution, closing, grip_q)
         if not solution.accepted:
-            self.fail(f"Unreachable {name}: IK error {solution.position_error:.4f} m, "
-                      f"axis {solution.axis_error:.4f}")
+            self.fail(f"{UNREACHED} {name} within the search window: "
+                      f"position error {solution.position_error:.4f} m, "
+                      f"axis error {solution.axis_error:.4f}")
             return
         self.solution = solution.targets
         self.end[self.actuators] = solution.targets
@@ -356,7 +378,12 @@ class PlatePlace:
         else:
             self.current_contact = 0.0
         self.peak_lift = max(self.peak_lift, self.lift)
-        if held and self.lift > 0.025:
+        # Height alone is not evidence that the jaws bear the weight. The world body
+        # carries the table and the cabinet, and a plate resting on either while the
+        # pads merely touch it is not a lift; this is the check whose absence let a
+        # fork resting on the open drawer score as retrieved.
+        unsupported = held and 0 not in bodies
+        if unsupported and self.lift > 0.025:
             self.lift_run += self.model.opt.timestep
             self.sustained_lift = max(self.sustained_lift, self.lift_run)
         else:

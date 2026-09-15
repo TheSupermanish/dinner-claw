@@ -109,7 +109,8 @@ class CupPlace:
         if z is not None:
             solution = solve_down(self.model, self.data, self.arm, [*xy, z])
             if not solution.accepted:
-                self.fail(f"Unreachable {name}: IK error {solution.position_error:.4f} m")
+                self.fail(f"No accepted downward approach for {name}: "
+                          f"position error {solution.position_error:.4f} m")
                 return
             self.end[self.actuators] = solution.targets
         if phase in {1, 2, 8, 9, 10} or not self.close_gripper:

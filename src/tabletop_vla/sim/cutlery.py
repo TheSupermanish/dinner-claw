@@ -86,6 +86,13 @@ def _jaw_aim(model, data, arm, target, tilt, az, initial, closing, grip_q):
     return corrected if corrected.accepted else solution
 
 
+# A failed IK search means this teacher found no ACCEPTED pose inside its own search
+# window, not that the arm cannot get there. `_waypoint` sweeps only +/-20 degrees of
+# tilt and +/-36 of azimuth around one preferred angle, and a retract pose that solves
+# at 1e-05 m was reported "Unreachable" on that basis. Say what was actually measured.
+UNREACHED = "No accepted approach for"
+
+
 class CutleryRetrieve:
     """Opens the drawer with the verified teacher, then retrieves one piece of cutlery."""
 
@@ -103,6 +110,12 @@ class CutleryRetrieve:
         self.handle_geom = self.model.geom(f"{obj}_handle").id
         self.fingers = {self.model.body("left_gripper").id,
                         self.model.body("left_moving_jaw_so101_v1").id}
+        # Anything that could hold the cutlery up instead of the jaws. Height alone is
+        # not evidence of a lift: the drawer front wall stands well above the drawer
+        # floor, so "25 mm above the floor while the jaws touch it" was satisfiable by
+        # cutlery propped on the drawer with the jaws merely resting against it. The
+        # world body covers the table and the cabinet, which are welded into it.
+        self.supports = {0, self.model.body("drawer").id}
         self.actuators = [self.model.actuator(f"left_{j}").id for j in JOINTS]
         self.grip = self.model.actuator("left_gripper").id
         self.grip_q = int(self.model.joint("left_gripper").qposadr[0])
@@ -226,8 +239,9 @@ class CutleryRetrieve:
             solution = _jaw_aim(self.model, self.data, "left", target, tilt, az,
                                 self.solution, closing, grip_q)
         if not solution.accepted:
-            self.fail(f"Unreachable {name}: IK error {solution.position_error:.4f} m, "
-                      f"axis {solution.axis_error:.4f}")
+            self.fail(f"{UNREACHED} {name} within the search window: "
+                      f"position error {solution.position_error:.4f} m, "
+                      f"axis error {solution.axis_error:.4f}")
             return
         self.solution = solution.targets
         self.end[self.actuators] = solution.targets
@@ -296,7 +310,8 @@ class CutleryRetrieve:
         else:
             self.current_contact = 0.0
         self.peak_lift = max(self.peak_lift, self.lift)
-        if held and self.lift > 0.025:
+        unsupported = held and not (bodies & self.supports)
+        if unsupported and self.lift > 0.025:
             self.lift_run += self.model.opt.timestep
             self.sustained_lift = max(self.sustained_lift, self.lift_run)
         else:

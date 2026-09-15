@@ -87,11 +87,33 @@ class DrawerOpen:
         self.actuators = [self.model.actuator(f"left_{j}").id for j in JOINTS]
         self.grip = self.model.actuator("left_gripper").id
         self.grip_q = self.model.joint("left_gripper").qposadr[0]
+        self.drawer_body = self.model.body("drawer").id
+        # Every robot link, not just the two jaws. `contacts()` only sees the HANDLE geom,
+        # so "the fingers left the handle" was satisfiable while the wrist or a forearm
+        # still leaned on the drawer front and held it open. Release has to mean the whole
+        # arm is off the whole drawer.
+        self.arm_bodies = {
+            i for i in range(self.model.nbody)
+            if (mujoco.mj_id2name(self.model, mujoco.mjtObj.mjOBJ_BODY, i) or "").startswith(
+                ("left_", "right_"))
+        }
         self.initial = self.data.geom_xpos[self.handle].copy()
         self.start_q = float(self.data.qpos[self.qid])
         self.bilateral_s = self.current_contact = self.stable_s = self.contact_pull_m = 0.0
         self.latched = False
         self.events = []
+
+    def arm_touching_drawer(self):
+        """Any force-bearing contact between a robot link and any drawer geom."""
+        force = np.zeros(6)
+        for i, contact in enumerate(self.data.contact):
+            a, b = self.model.geom_bodyid[[contact.geom1, contact.geom2]]
+            pair = {int(a), int(b)}
+            if self.drawer_body in pair and pair & self.arm_bodies:
+                mujoco.mj_contactForce(self.model, self.data, i, force)
+                if force[0] > 0.02:
+                    return True
+        return False
 
     def contacts(self):
         bodies = set()
@@ -129,7 +151,8 @@ class DrawerOpen:
                 target[1] = -0.06
             solution = solve_down(self.model, self.data, "left", target)
             if not solution.accepted:
-                self.fail(f"Unreachable {self.phases[phase][0]}: {solution.position_error:.4f} m")
+                self.fail(f"No accepted downward approach for {self.phases[phase][0]}: "
+                          f"position error {solution.position_error:.4f} m")
                 return
             self.end[self.actuators] = solution.targets
             if name == "Fold outside cabinet":
@@ -155,7 +178,9 @@ class DrawerOpen:
                 if self.stable_s >= 0.3:
                     self.status, self.sim.running = "succeeded", False
                 else:
-                    self.fail("Drawer was not stably open after release")
+                    self.fail(f"Drawer was not stably open after release "
+                              f"(stable {self.stable_s:.2f} s of 0.30; arm still on the "
+                              f"drawer: {self.arm_touching_drawer()})")
                 return
             self.enter(self.phase + 1)
             elapsed, duration = 0.0, self.phases[self.phase][1]
@@ -185,7 +210,9 @@ class DrawerOpen:
             self.contact_pull_m = max(self.contact_pull_m, self.travel)
         else:
             self.current_contact = 0.0
-        if self.travel >= 0.085 and not (bodies & self.fingers) and abs(self.data.qvel[self.vid]) < 0.005:
+        if (self.travel >= 0.085 and not (bodies & self.fingers)
+                and not self.arm_touching_drawer()
+                and abs(self.data.qvel[self.vid]) < 0.005):
             self.stable_s += self.model.opt.timestep
         else:
             self.stable_s = 0.0

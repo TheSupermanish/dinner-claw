@@ -40,7 +40,7 @@ from pathlib import Path
 import mujoco
 import numpy as np
 
-from tabletop_vla.sim.cutlery import CutleryRetrieve
+from tabletop_vla.sim.cutlery import UNREACHED, CutleryRetrieve
 from tabletop_vla.sim.drawer import prepare_workcell
 from tabletop_vla.sim.kinematics import JOINTS, gripper_geometry, solve_pose
 from tabletop_vla.sim.reach import _cartesian
@@ -257,8 +257,9 @@ class SpoonHandoff:
             solution = _jaw_aim(self.model, self.data, "left", target, tilt, az,
                                 self.left_solution, closing, grip_q)
             if not solution.accepted:
-                self.fail(f"Unreachable {name}: IK error {solution.position_error:.4f} m, "
-                          f"axis {solution.axis_error:.4f}")
+                self.fail(f"{UNREACHED} {name} within the search window: "
+                          f"position error {solution.position_error:.4f} m, "
+                          f"axis error {solution.axis_error:.4f}")
                 return
             self.left_solution = solution.targets
             self.end[self.left_actuators] = solution.targets
@@ -269,7 +270,8 @@ class SpoonHandoff:
             solution = _jaw_aim(self.model, self.data, "right", target, tilt, az,
                                 initial, closing, grip_q)
             if not solution.accepted:
-                self.fail(f"Unreachable {name} (gate 2: receiver cannot reach a grasp): "
+                self.fail(f"{UNREACHED} {name} within the search window "
+                          f"(gate 2: receiver cannot reach a grasp): "
                           f"IK error {solution.position_error:.4f} m, "
                           f"axis {solution.axis_error:.4f}")
                 return
@@ -298,7 +300,7 @@ class SpoonHandoff:
         if self.stage == "giver":
             self.giver.before_step()
             if self.giver.status == "failed":
-                if (self.giver.reason.startswith("Unreachable Carry to mat")
+                if (self.giver.reason.startswith(f"{UNREACHED} Carry to mat")
                         and self.giver.bilateral_s >= 0.15
                         and self.giver.sustained_lift >= 0.4):
                     self.take_over()
@@ -330,17 +332,26 @@ class SpoonHandoff:
                 if not self.right_holds:
                     self.fail("Gate 3 failed: receiver dropped the spoon on release")
                     return
-            if name == "Receiver lift" and self.receiver_only_s < 0.4:
+            # Contact duration alone is NOT a lift. `receiver_lifts` was computed from
+            # a 20 mm rise since the giver let go (see the rise check below) and then
+            # never consulted, so a receiver that gripped the spoon and held it exactly
+            # where the giver left it scored a handoff. AGENTS.md forbids counting
+            # sequential contact by two arms as a transfer; this is that rule, enforced.
+            if name == "Receiver lift" and (self.receiver_only_s < 0.4
+                                            or not self.gates["receiver_lifts"]):
                 self.fail(f"Gate 4 failed: no sustained receiver-only lift "
-                          f"({self.receiver_only_s:.2f} s)")
+                          f"(receiver-only contact {self.receiver_only_s:.2f} s of 0.40, "
+                          f"peak rise after release {self.peak_rise * 1000:.1f} mm of 20.0)")
                 return
             if self.phase == len(self.phases) - 1:
-                if (self.receiver_only_s >= 0.4 and self.stable_release >= 0.3
+                if (self.receiver_only_s >= 0.4 and self.gates["receiver_lifts"]
+                        and self.stable_release >= 0.3
                         and not self.left_contact_after_release):
                     self.gates["sustained_ownership"] = True
                     self.status, self.sim.running = "succeeded", False
                 else:
                     self.fail(f"Gate 5 failed: receiver-only {self.receiver_only_s:.2f} s, "
+                              f"peak rise after release {self.peak_rise * 1000:.1f} mm, "
                               f"stable release {self.stable_release:.2f} s, "
                               f"left contact after release: "
                               f"{self.left_contact_after_release}")

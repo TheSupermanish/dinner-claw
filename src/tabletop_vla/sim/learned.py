@@ -71,7 +71,7 @@ class LearnedCup:
                 target[2] += 0.01
                 solution = solve_down(sim.model, sim.data, "right", target)
                 if not solution.accepted:
-                    self.fail("Post-policy retreat is unreachable; stopped")
+                    self.fail("Post-policy retreat has no accepted downward approach; stopped")
                     return
                 self.retreat_start = sim.data.ctrl.copy()
                 self.retreat_target = self.retreat_start.copy()

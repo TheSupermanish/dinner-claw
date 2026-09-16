@@ -13,6 +13,22 @@ uv run mjpython -m tabletop_vla.native --seed 0
 viewer runs at **1.0x realtime**, so an episode takes as long on the clock as its
 simulated duration.
 
+### Hotkeys are DIGITS. Do not press letters.
+
+MuJoCo's viewer binds every letter A-Z to one of its own render toggles, and it runs
+that handler alongside ours, so a letter does two things at once. `F` turns on Contact
+Force and fills the scene with giant arrows; `L` turns on Additive and washes the table
+out in white; `B`, `N`, `V`, `A`, `H`, `D`, `P`, `M`, `G`, `R` all toggle something.
+Our hotkeys were letters until 2026-09-16 and collided on twelve of them.
+
+Digits are bound by neither `mjVISSTRING` nor `mjRNDSTRING`, so they are collision-free
+and that is what the viewer uses now. The visual flags are also pinned every frame, so
+even a stray letter cannot leave arrows on screen. Pass `--free-visuals` if you
+deliberately want MuJoCo's own toggles (wireframe, transparency) to stick.
+
+If arrows or a white wash ever do appear, the key that turned it on turns it off:
+press `F` again for arrows, `L` for the white wash, `G` for fog, `R` for reflections.
+
 Camera starts at azimuth 130, elevation -32, distance 1.6, looking at the table
 centre. Drag to orbit. The two-arm plate lift reads best from a low angle where the
 plate's tilt is visible against the table edge.
@@ -20,7 +36,7 @@ plate's tilt is visible against the table edge.
 ## Seeds
 
 Each skill was evaluated on its own range, and the viewer shows the live seed in the
-top-right overlay. `[` and `]` step it without restarting.
+top-right overlay. `-` and `=` step it without restarting.
 
 | skill | evaluated range | result |
 |---|---|---|
@@ -38,7 +54,7 @@ will bite you. The drawer, fork and two-arm plate passed on all four seeds tried
 
 Times are wall-clock, at 1.0x.
 
-### 1. `N` — drawer, 18 s
+### 1. `1` — drawer, 18 s
 The left arm grips the handle, pulls, releases, retracts. Overlay shows
 `Drawer opened 9.9 cm`.
 
@@ -46,14 +62,14 @@ Worth saying: success is not "the script finished". The drawer must travel at le
 8.5 cm **through a verified bilateral handle pull**, then stay open with the whole arm
 off the whole drawer. An arm still leaning on the drawer front fails the gate.
 
-### 2. `F` — drawer then fork, 46 s
+### 2. `2` — drawer then fork, 46 s
 The longest one. The drawer stage runs again, and then the fork is retrieved **in the
 same episode with no reset**, no weld, no teleport. That is the point of this skill:
 the second half depends on the physical state the first half produced.
 
 It is 46 seconds of watching, so fill it with the no-reset explanation.
 
-### 3. `B` — two-arm plate lift, 19 s
+### 3. `3` — two-arm plate lift, 19 s
 The headline. Both arms grip opposing rim segments and carry the plate to its mat.
 
 Overlay reads:
@@ -63,17 +79,27 @@ Lift 8.1 cm | Tilt 13.5 deg of 15 | 4-pad 3.20 s | Place error 20.7 mm
 Point at **Tilt**. That is what makes this a lift rather than a lever, and it is a
 success condition: over 15 degrees at any airborne moment and the episode fails.
 
-### 4. `L` — one-arm plate, 20 s, and it fails
-Run it straight after `B`, same seed. The single arm pinches the rim 94 mm from the
+### 4. `4` — one-arm plate, 20 s, and it fails
+Run it straight after `3`, same seed. The single arm pinches the rim 94 mm from the
 plate's centre of mass, so it applies almost pure torque: the plate tips up on its far
 rim and never leaves the table. Six of ten seeds do not lift at all. **0/10.**
 
 This is the most honest 20 seconds in the demo and the clearest argument for why the
 cell has two arms. It is kept in the tree deliberately, not hidden.
 
-### 5. `V` — camera-guided cup, 18 s
+### 5. `5` — camera-guided cup, 18 s
 Locates the cup from top-camera pixels, then runs the scripted skill. Calibrated
 colour vision and a strict command grammar, **not a VLM**.
+
+## Full key map
+
+```
+1 drawer          2 drawer+fork      3 two-arm plate    4 one-arm plate (fails)
+5 camera cup      6 cup teacher      7 ACT              8 ACT+finish
+9 motor demo      0 reset            . pause            - / =  seed down / up
+```
+
+Use the number row, not the numeric keypad: the keypad sends different key codes.
 
 ## What the overlay means
 
@@ -104,8 +130,8 @@ Safe, because they are measured and reproducible from `outputs/`:
 It can. The gates are strict on purpose and nothing is stage-managed.
 
 1. Say what the overlay says. The failure reason is specific and is the real output.
-2. `R` resets the same seed; `[` / `]` move to another.
+2. `0` resets the same seed; `-` / `=` move to another; `.` pauses.
 3. A failure on an unevaluated seed is not a contradiction of a held-out number, and
    saying so is better than pretending it did not happen.
 
-The single-arm plate (`L`) fails every time by design. Do not "fix" it live.
+The single-arm plate (`4`) fails every time by design. Do not "fix" it live.

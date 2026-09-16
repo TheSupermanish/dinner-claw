@@ -32,6 +32,10 @@ def _telemetry(result):
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--seed", type=int, default=0)
+    parser.add_argument("--free-visuals", action="store_true",
+                        help="Allow MuJoCo's own letter-key render toggles to stick. "
+                             "Off by default so a stray keypress cannot leave contact "
+                             "arrows on screen during a demo.")
     args = parser.parse_args()
     # Resolve the display before constructing the native viewer. On this Mac,
     # immediate startup otherwise crashed inside GLFW's Cocoa video-mode lookup;
@@ -41,15 +45,42 @@ def main():
         raise RuntimeError("No usable desktop display. Use the live browser console instead.")
     sim = Simulation()
     keys = queue.Queue()
+    # Hotkeys are DIGITS, never letters. MuJoCo's viewer binds every letter A-Z to a
+    # visualization or rendering toggle of its own (mjVISSTRING and mjRNDSTRING), and
+    # `launch_passive` runs that built-in handler ALONGSIDE this callback, so a letter
+    # hotkey fires both. Measured 2026-09-16, the old letter map collided on twelve
+    # keys: F also toggled Contact Force, which buries the scene in giant arrows; L
+    # also toggled Additive rendering, which washes the table out in white; B toggled
+    # Perturb Force, N toggled Island, V Tendon, A Auto Connect, H Convex Hull, D
+    # Static Body, P Contact Split, M Center of Mass, G Fog and R Reflection. Neither
+    # mjVISSTRING nor mjRNDSTRING binds a digit, so digits are collision-free.
+    TASK_KEYS = {
+        "1": "drawer-open",
+        # 2 chains drawer -> fork retrieval in ONE episode with no reset:
+        # 10/10 on held-out seeds 40-49.
+        "2": "fork-retrieve",
+        # 3 lifts the plate with BOTH arms: 10/10 held-out seeds 50-59, control 0/4.
+        "3": "bimanual-plate-lift",
+        # 4 is the SINGLE-arm plate and it FAILS, 0/10, deliberately. A one-arm rim
+        # pinch grips 94 mm off the centre of mass, so it levers the plate up on its
+        # far rim; six of ten seeds never leave the table. Run straight after 3 on the
+        # same seed it is the clearest evidence for why the cell has two arms.
+        "4": "plate-place-left",
+        "5": "camera-cup-place",
+        "6": "cup-place",
+        "7": "learned-cup-place",
+        "8": "learned-cup-safe-place",
+    }
     # The seed is live, not fixed at startup. Every skill was measured on its OWN
-    # range (drawer 30-39, fork 40-49, two-arm plate 50-59, cup 200-209), so a viewer
+    # range (drawer 30-39, fork 40-49, two-arm plate 50-59, cup 500-549), so a viewer
     # locked to one startup seed either demonstrates seeds nobody evaluated or needs a
-    # restart between skills. `[` and `]` step it; the overlay always shows which.
+    # restart between skills. `-` and `=` step it; the overlay always shows which.
     seed = args.seed
     sim.start_task(seed)
-    print("Native MuJoCo: N = drawer, F = drawer+fork, L = plate (fails, 0/10), "
-          "B = bimanual plate, G = cup teacher, V = camera, A = ACT, H = ACT+finish, "
-          "D = demo, P = pause, M = manual, R = reset, [ / ] = seed -/+", flush=True)
+    print("Native MuJoCo (digit keys; letters are MuJoCo's own render toggles): "
+          "1 drawer | 2 drawer+fork | 3 two-arm plate | 4 one-arm plate (fails 0/10) | "
+          "5 camera cup | 6 cup teacher | 7 ACT | 8 ACT+finish | 9 motor demo | "
+          "0 reset | - / = seed | . pause", flush=True)
     error = None
     try:
         with mujoco.viewer.launch_passive(sim.model, sim.data, key_callback=keys.put) as viewer:
@@ -58,46 +89,57 @@ def main():
                 viewer.cam.distance = 1.6
                 viewer.cam.azimuth = 130
                 viewer.cam.elevation = -32
+            # The clean look, captured before anything can toggle it. Restored every
+            # frame unless --free-visuals, so a stray keypress cannot leave contact
+            # arrows or perturbation vectors on screen in front of an audience.
+            pinned = tuple(viewer.opt.flags)
+            # Contact-force and perturbation arrows live in `viewer.opt.flags`, which is
+            # public. Additive, Fog, Reflection, Shadow, Wireframe and Skybox live in the
+            # scene's own render flags, which the handle does not expose; reach for them
+            # defensively, because failing to pin them is cosmetic while raising inside
+            # the viewer loop would close the window mid-demo.
+            scene = None
+            pinned_render = ()
+            try:
+                candidate = viewer._get_sim()
+                if candidate is not None and hasattr(candidate, "scn"):
+                    scene = candidate.scn
+                    pinned_render = tuple(scene.flags)
+            except Exception:  # noqa: BLE001 - never let a private API kill the viewer
+                scene = None
             while viewer.is_running():
                 start = time.perf_counter()
                 with viewer.lock():
+                    if not args.free_visuals and tuple(viewer.opt.flags) != pinned:
+                        for index, value in enumerate(pinned):
+                            viewer.opt.flags[index] = value
+                    if (not args.free_visuals and scene is not None
+                            and tuple(scene.flags) != pinned_render):
+                        try:
+                            for index, value in enumerate(pinned_render):
+                                scene.flags[index] = value
+                        except Exception:  # noqa: BLE001
+                            scene = None
                     while not keys.empty():
                         key = keys.get_nowait()
-                        if key in (ord("G"), ord("g")):
-                            sim.start_task(seed)
-                            error = None
-                        elif chr(key).upper() in {"V", "A", "H", "N", "F", "L", "B"}:
-                            names = {"V": "camera-cup-place", "A": "learned-cup-place",
-                                     "H": "learned-cup-safe-place", "N": "drawer-open",
-                                     # F chains drawer -> fork retrieval in ONE episode
-                                     # with no reset: 10/10 on held-out seeds 40-49.
-                                     "F": "fork-retrieve",
-                                     # L is the SINGLE-arm plate and it fails: 0/10.
-                                     # Kept as the contrast for B. A one-arm rim pinch
-                                     # grips 94 mm off the centre of mass, so it levers
-                                     # the plate up on its far rim instead of lifting;
-                                     # six of ten seeds never leave the table at all.
-                                     "L": "plate-place-left",
-                                     # B lifts the plate with BOTH arms to its mat:
-                                     # 10/10 on held-out seeds 50-59, open-gripper 0/4.
-                                     "B": "bimanual-plate-lift"}
+                        name = TASK_KEYS.get(chr(key) if 0 <= key < 0x110000 else "")
+                        if name is not None:
                             try:
-                                sim.start_task(seed, names[chr(key).upper()])
+                                sim.start_task(seed, name)
                                 error = None
                             except (ValueError, RuntimeError, OSError) as exc:
                                 error = str(exc)
-                        elif key in (ord("D"), ord("d")):
+                        elif key == ord("9"):
                             sim.start_demo(seed)
-                        elif key in (ord("P"), ord("p")):
+                        elif key == ord("."):
                             sim.running = not sim.running
-                        elif key in (ord("M"), ord("m")):
+                        elif key == ord("0"):
                             sim.cancel_demo()
-                            sim.running = True
-                        elif key in (ord("R"), ord("r")):
                             sim.reset(seed)
                             sim.running = True
-                        elif key in (ord("["), ord("]")):
-                            seed = max(0, seed + (1 if key == ord("]") else -1))
+                            error = None
+                        elif key in (ord("-"), ord("=")):
+                            seed = max(0, seed + (1 if key == ord("=") else -1))
                             sim.reset(seed)
                             sim.running = True
                             error = None
@@ -115,10 +157,10 @@ def main():
                 viewer.set_texts((
                     mujoco.mjtFontScale.mjFONTSCALE_100,
                     mujoco.mjtGridPos.mjGRID_TOPLEFT,
-                     ("SO-101 LIVE PHYSICS\n"
-                     "N: drawer 30-39 | F: drawer+fork 40-49 | B: two-arm plate 50-59\n"
-                     "L: one-arm plate (fails 0/10) | G/V: cup | A/H: ACT\n"
-                     "P: pause | D: demo | M: manual | R: reset | [ ]: seed"),
+                     ("SO-101 LIVE PHYSICS   (digit keys)\n"
+                     "1 drawer 30-39 | 2 drawer+fork 40-49 | 3 two-arm plate 50-59\n"
+                     "4 one-arm plate (fails 0/10) | 5/6 cup | 7/8 ACT | 9 motor demo\n"
+                     ". pause | 0 reset | - / = seed"),
                     f"Seed {seed} | {sim.data.time:.2f}s\n{status}\n{error or detail}\n" + (
                         sim.task.state()["controller"] if sim.task else "Motor control only"),
                 ))

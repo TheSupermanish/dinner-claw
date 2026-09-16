@@ -38,12 +38,25 @@ plate's tilt is visible against the table edge.
 Each skill was evaluated on its own range, and the viewer shows the live seed in the
 top-right overlay. `-` and `=` step it without restarting.
 
-| skill | evaluated range | result |
-|---|---|---|
-| drawer open | 30-39 held-out | 10/10, travel 9.95-9.96 cm, open-gripper control 0/3 |
-| drawer + fork | 40-49 held-out | 10/10, placement error 4.6-17.4 mm |
-| two-arm plate | 50-59 held-out | 10/10; 9/10 on tuning seeds 40-49; control 0/4 |
-| camera cup | 500-549 | 49/50; 20/20 on 600-619; 40/50 on 400-449 |
+Full regression, 2026-09-16, against the current scene
+(`outputs/regression-2026-09-16/`):
+
+| skill | evaluated range | result | negative control |
+|---|---|---|---|
+| drawer open | 30-39 held-out | 10/10 | 0/3 |
+| drawer + fork | 40-49 held-out | 10/10 | 0/3 |
+| two-arm plate | 50-59 held-out | 9/10 | 0/4 |
+| two-arm plate | 40-49 tuning | 9/10 | |
+| cup teacher | 200-209 | 10/10 | 0/3 |
+| camera cup | 500-549 | 50/50 | |
+| one-arm plate | 40-49 | 0/10, deliberate | |
+
+Every negative control scores zero, each rejected at its first physical gate.
+
+On the two-arm plate, say 9/10 and not 10/10. Across every configuration measured
+today it lifts and carries level on 20 of 20 seeds and fails the RELEASE on 2, and the
+seed that fails moves when unrelated parts of the scene change. Quoting a clean 10/10
+would be quoting the best run rather than the behaviour.
 
 **Seed 0 passes all four** and is the default. Verified 2026-09-16 by running every
 skill end to end at seeds 0-3: seeds 0 and 2 give 4/4, seeds 1 and 3 give 3/4 with the
@@ -91,14 +104,18 @@ cell has two arms. It is kept in the tree deliberately, not hidden.
 Locates the cup from top-camera pixels, then runs the scripted skill. Calibrated
 colour vision and a strict command grammar, **not a VLM**.
 
-### The green cylinder has no demo
-It is the bottle. There is no pour skill, and MuJoCo has no liquid here. It is set
-dressing plus a planner fixture: the rule-based planner will PREVIEW a pour as
-`pick(left, bottle) -> pour(left, bottle)`, and `executable_task` then refuses it,
-because `EXECUTABLE` holds only the three skills with measured held-out rates
-(`camera-cup-place`, `fork-retrieve`, `bimanual-plate-lift`). If someone asks the
-system to pour, it fails closed rather than flailing. That refusal is worth showing
-if the planner comes up, but it lives in the CLI and web console, not this viewer.
+### The green cylinder has no demo yet
+It is the bottle. It now has a 32 mm neck so the jaws can actually close on it (the
+70 mm body exceeds the 56.4 mm jaw opening, which is why nothing could grip it), but
+there is still no pour skill and MuJoCo has no liquid here. It is parked out of shot in
+the drawer and two-arm-plate workcells and declared in the episode result.
+
+It is also a planner fixture: the rule-based planner will PREVIEW a pour as
+`pick(right, bottle) -> pour(right, bottle)`, deriving the arm from the measured
+ownership table, and `executable_task` then refuses to run it, because `EXECUTABLE`
+holds only skills with a measured held-out rate. Asking the system to pour makes it
+fail closed rather than flail. Worth showing if the planner comes up, but it lives in
+the CLI and web console, not this viewer.
 
 ## Full key map
 

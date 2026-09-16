@@ -2,7 +2,7 @@ import mujoco
 import numpy as np
 import pytest
 
-from tabletop_vla.sim.kinematics import solve_down
+from tabletop_vla.sim.kinematics import gripper_geometry, solve_down
 from tabletop_vla.sim.runtime import Simulation
 
 
@@ -57,3 +57,24 @@ def test_manual_action_cancels_task_without_claiming_success():
     sim.step(500)
     sim.control("right_gripper", 0.85)
     assert sim.task.status == "cancelled"
+
+
+@pytest.mark.parametrize("arm", ("left", "right"))
+def test_live_gripper_geometry_tracks_asymmetric_jaw(arm):
+    sim = Simulation()
+    joint = sim.model.joint(f"{arm}_gripper")
+    qid = int(joint.qposadr[0])
+
+    sim.data.qpos[qid] = joint.range[1]
+    mujoco.mj_forward(sim.model, sim.data)
+    opened = gripper_geometry(sim.model, sim.data, arm)
+
+    sim.data.qpos[qid] = joint.range[0]
+    mujoco.mj_forward(sim.model, sim.data)
+    closed = gripper_geometry(sim.model, sim.data, arm)
+
+    assert np.isfinite(opened.midpoint).all()
+    assert np.linalg.norm(opened.closing_axis) == pytest.approx(1.0)
+    assert opened.separation > closed.separation
+    assert not np.allclose(opened.midpoint, closed.midpoint)
+    np.testing.assert_array_equal(sim.data.qpos[qid], joint.range[0])

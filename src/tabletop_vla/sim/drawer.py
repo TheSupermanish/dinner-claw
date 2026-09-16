@@ -13,6 +13,24 @@ from tabletop_vla.sim.kinematics import JOINTS, solve_down
 TABLE_TOP = 0.735
 
 
+# A far corner of the floor plane, out of every camera's view. Parking a prop here
+# rather than at a negative z keeps it RESTING instead of free-falling forever, which
+# would accumulate velocity and trip the physics-warning counters the episode reports.
+PARKED = [1.4, 1.4, 0.10]
+
+
+def park_prop(sim, name, reason):
+    """Move an unused prop off the table BEFORE an episode, and declare it.
+
+    Workcell setup may only happen before an episode and must appear in the result;
+    see AGENTS.md. Nothing here runs during execution.
+    """
+    address = sim.model.jnt_qposadr[sim.model.body_jntadr[sim.model.body(name).id]]
+    sim.data.qpos[address:address + 3] = PARKED
+    sim.data.qpos[address + 3:address + 7] = [1, 0, 0, 0]
+    sim.variation.setdefault("parked_props", {})[name] = reason
+
+
 def prepare_workcell(sim, seed):
     """Configure a reachable cabinet before the episode starts, never during motion."""
     model, data = sim.model, sim.data
@@ -52,6 +70,9 @@ def prepare_workcell(sim, seed):
         model.geom_pos[model.geom(f"cabinet_{name}").id] = center + offset
     for name in ("left", "right", "back"):
         model.geom_size[model.geom(f"cabinet_{name}").id][2] = wall_half
+    # No skill uses the bottle. Left on the table it is unexplained clutter in every
+    # shot of this workcell, so it is parked and declared rather than quietly ignored.
+    park_prop(sim, "bottle", "no pour skill exists; bottle is unused in this workcell")
     for obj, position in (("plate", [0.0, 0.38, 0.752]),
                           ("fork", center + [-0.045, 0, 0.014]),
                           ("spoon", center + [0.045, 0, 0.014])):

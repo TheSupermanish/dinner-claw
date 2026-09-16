@@ -9,11 +9,22 @@
 - [x] Add browser drawer control and native `N` shortcut.
 - [x] Keep camera teacher, pure ACT and hybrid ACT results separately labelled.
 - [x] ACT trained/exported; hybrid fresh-seed test 19/20, matched normal/blank RGB 10/10 vs 1/10.
-- [ ] Retrieve fork/spoon from the open drawer without resetting between skills.
-- [ ] Implement plate placement and a measured giver/receiver handoff.
+- [x] Retrieve fork/spoon from the open drawer without resetting between skills.
+      Fork 10/10 on held-out seeds 40-49, chained straight after the drawer in ONE
+      episode, no weld, no teleport, no reset (`outputs/fork-supportgate-40-49.json`).
+- [x] Implement plate placement with BOTH arms: 10/10 held-out seeds 50-59, 9/10 on
+      tuning seeds 40-49, open-gripper control 0/4. A single arm grips the rim 94 mm
+      from the plate's centre of mass and only levers it, so the single-arm teacher is
+      0/10 and is kept as the documented contrast, not deleted.
+- [ ] Implement a measured giver/receiver handoff. Gates are wired (receiver lift is
+      now required, not just contact duration) but no passing run exists yet.
 - [ ] Chain the individual skills, track ownership, recover and evaluate the whole task.
 - [ ] Replace unreliable VLM probe with tested scene/instruction reasoning.
 - [ ] Validate simulation and inference on actual Core Ultra Series 2/3 hardware.
+
+Public-code audit: `docs/PUBLIC_CODE_AUDIT.md`. The closest public full-task project
+reports 0/10 complete sequences; two narrower 10/10 prototypes use weld/kinematic
+attachment. We will not import those shortcuts or copy unlicensed competitor code.
 
 The new drawer and existing cup run in separate reset workcells for now. They do
 not yet satisfy bimanual coordination or the full dinner-table prompt. Detailed
@@ -58,12 +69,12 @@ and measured behavior parity apply to the actual model used by the demo.
 | Brief requirement | Current implementation | Remaining verification |
 |---|---|---|
 | Two SO-101 arms, MuJoCo | Official pinned models; 12 limited motors | Reach/workspace/collision analysis |
-| Drawer, cutlery, plate, cup | Sliding tray + simplified objects + target markers | Cabinet, useful cutlery geometry, hollow cup, grasp affordances |
-| Grasp/place, coordinated action | Physical right-arm cup teacher with contact/lift/release gates | Other objects, handoff, recovery |
+| Drawer, cutlery, plate, cup | Sliding tray, cabinet, graspable cutlery handle, rimmed plate, hollow cup, target markers | Spoon handoff; bottle is set dressing with no pour skill |
+| Grasp/place, coordinated action | Cup, drawer, drawer+fork chain, and a TWO-ARM plate lift, all contact-gated with negative controls | Handoff and recovery |
 | Language + raw camera reasoning | Camera feed; keyword plan preview | Actual VLM, grounding, state updates, replan |
 | Policy training or fine-tuning | Official LeRobot ACT baseline trained on ten recorded episodes | Successful independent physical rollouts before deployment |
 | Placement, weight, friction, shape, lighting, background perturbations | Placement/mass/friction/light + cup aspect ratio + table/floor colors | More shapes/topologies, clutter and broader workspace |
-| Ten randomized seeds | Cup teacher passed multiple seed batches; ten-seed cup video recorded | Ten full dinner-table task rollouts |
+| Ten randomized seeds | Every skill measured on ten held-out seeds: drawer 10/10, fork 10/10, two-arm plate 10/10, camera cup 49/50 on 500-549 | Ten full dinner-table task rollouts |
 | OpenVINO optimization | Validated-input benchmark with hashes/device/timing metadata | Real export, Intel run and behavior-parity checks |
 | Core Ultra Series 2/3 demonstration | No qualifying hardware run | User-provided Intel host and device benchmark |
 | Reproducible public repo + video | Local repository, lockfile, tests, provenance | Training/eval commands, video, user-approved publication |
@@ -110,9 +121,22 @@ targets vs actual positions and contact evidence. Proposed command: `tabletop-ev
 - [x] Add a drawer housing and reachable handle workcell; open it by physical
       left-arm grip/pull (10/10 seeds 30–39, separate from the cup workcell).
 - [ ] Route each arm through collision-checked waypoints with a shared-zone lock.
+- [x] Calibrate the live jaw-face midpoint and closing axis; add object-specific
+      opening, squeeze, and standoff parameters for fork, spoon, plate, and mug.
+      `gripper_geometry()` reads the live jaw faces from the collision boxes and the
+      teachers re-solve against the achieved midpoint.
+- [x] Add closing-axis orientation to IK. `solve_pose(..., closing=)` constrains the
+      jaw closing direction, which is what makes a radial rim pinch possible at all.
+      NOT done: rejecting waypoints missed through joint/torque saturation despite a
+      low IK residual, and `Solution` still reports no achieved-closing-axis error, so
+      an accepted pose can have quietly abandoned the closing constraint it was given.
 - [ ] Implement giver hold -> receiver contact -> giver release -> receiver lift handoff.
-- [ ] Track object ownership and reject out-of-order or impossible skills.
-- [ ] Complete drawer, cutlery, plate, and cup placement as verified subgoals.
+- [ ] Track object ownership and reject out-of-order or impossible skills. A handoff
+      requires receiver bilateral contact, giver release, receiver lift, and sustained
+      receiver ownership; sequential touches do not count.
+- [x] Complete drawer, cutlery, plate, and cup placement as verified subgoals. All four
+      have held-out seed rates and open-gripper controls that score 0. They are verified
+      SUBGOALS; they are not yet chained into one episode beyond drawer -> fork.
 - [ ] Add hold-and-pour only after handoff succeeds; explicitly specify a measurable
       pouring proxy if fluid dynamics are omitted.
 

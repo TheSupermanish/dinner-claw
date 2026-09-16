@@ -1,36 +1,62 @@
 # Bimanual Tabletop VLA
 
-## Current status — September 14
+## Current status — 2026-09-16
 
-The project now has **two physical skills**, not just cup pickup:
+Five physical skills, each gated on independent physical postconditions and each with
+a negative control that must score zero. Full regression in
+`outputs/regression-2026-09-16/`:
 
-- **Left-arm drawer opening:** separate cabinet workcell; grasp the handle, pull
-  about 10 cm, release and retract. Browser: **Open drawer · left arm**. Native: `N`.
-  Verified 10/10 on held-out seeds 30–39; open-gripper control failed 0/3 as intended.
-  Evaluate: `uv run --no-sync python -m tabletop_vla.sim.drawer --seeds 30:40
-  --output outputs/new-drawer-eval.json`.
-- **Right-arm cup placement:** teacher, calibrated camera + retry, ACT/OpenVINO,
-  and explicitly labelled ACT + scripted finishing variants are separate controls.
-  Hybrid achieved 19/20 on seeds 2020–2039; normal/blank RGB on matched seeds
-  2020–2029 achieved 10/10 versus 1/10. Pure OpenVINO ACT achieved 7/10 on 2010–2019.
+| skill | arms | seeds | result | open-gripper control |
+|---|---|---|---|---|
+| Drawer open | left | 30-39 held-out | **10/10** | 0/3 |
+| Drawer then fork, one episode, no reset | left | 40-49 held-out | **10/10** | 0/3 |
+| **Plate lift, two arms** | both | 50-59 held-out | **9/10** | 0/4 |
+| Plate lift, two arms | both | 40-49 tuning | 9/10 | |
+| Cup place, scripted teacher | right | 200-209 | **10/10** | 0/3 |
+| Cup place, camera-guided | right | 500-549 | **50/50** | |
+| Plate lift, ONE arm | left | 40-49 | **0/10**, kept deliberately | |
 
-The drawer workcell repositions the cabinet and plate **before** execution and uses
-a simplified 44 mm-deep handle. Geometry BVH optimization is disabled only in this
-workcell because its collision shapes move at reset. No drawer actuator, weld, or
-in-motion object repositioning is used. This is a scripted drawer teacher, not
-a learned drawer policy. The skills are not yet chained into a cooperative task.
+**The two-arm plate lift is the cooperative action.** Both arms pinch opposing rim
+segments and carry the plate level. A single arm grips 94 mm from the plate's centre
+of mass, so it applies almost pure torque: it levers the plate onto its far rim and on
+six of ten seeds never gets it off the table at all. That single-arm teacher is kept in
+the tree at 0/10 as the evidence for why the cell needs two arms, not deleted to tidy
+the results.
 
-**Remaining:** cutlery retrieval, plate placement, actual two-arm handoff, dependable
-VLM reasoning, and the qualifying Intel Core Ultra Series 2/3 run. SmolVLM's local
-scene descriptions were unreliable and cannot issue motor commands. ACT FP32 export
-passed numerical fixtures; the FP16 candidate failed parity and is rejected.
-Mac CPU inference numbers are diagnostics, not Intel challenge results.
+Say 9/10 for the two-arm lift, not 10/10. Across every configuration measured it lifts
+and carries level on 20 of 20 seeds and fails the RELEASE on 2, and which seed fails
+moves when unrelated parts of the scene change. 10/10 has been observed; it is not the
+behaviour.
 
-Run all available local components with `uv sync --extra dev --extra train --extra
-intel --extra reasoning`, then `uv run --no-sync tabletop-web --port 8771`. Existing
-training checkpoints/export files must be present for the learned buttons to enable.
-`N` = drawer, `G` = cup teacher, `V` = camera cup, `A` = ACT, `H` = ACT + finish in
-the native viewer. The detailed target architecture below includes unfinished work.
+Success is never "the script finished". Each skill requires force-bearing contact from
+the named gripper pads, a sustained lift with nothing outside the robot bearing the
+weight, and a stable released placement at resting height. The two-arm lift adds a
+15-degree levelness bound, which a levering pivot cannot satisfy however high it raises
+the plate's centre. Failed results are preserved rather than removed.
+
+**Not done:** the spoon handoff (gates are wired and require a measured receiver lift,
+but no passing run exists), pouring (the bottle now has a graspable 32 mm neck, but
+there is no pour skill and no liquid in this scene), chaining beyond drawer to fork,
+dependable VLM reasoning, INT8 quantization, and the qualifying Intel Core Ultra
+Series 2/3 run.
+
+**No Intel hardware result exists.** Everything here ran on Apple silicon. Mac CPU
+inference numbers are diagnostics and are not challenge results. SmolVLM's local scene
+descriptions were unreliable and it issues no motor commands, so the planner is a
+deterministic grammar that fails closed, not a VLM. ACT FP32 export passed numerical
+fixtures; the FP16 candidate failed parity and is rejected.
+
+### Run it
+
+```bash
+uv sync --extra dev --extra train --extra intel --extra reasoning
+uv run mjpython -m tabletop_vla.native --seed 0   # native viewer, digit hotkeys
+uv run --no-sync tabletop-web --port 8771         # browser console
+```
+
+See [`DEMO.md`](DEMO.md) for the demo runbook, the hotkeys, and the claims that are
+safe to make. Hotkeys are digits: MuJoCo binds every letter A-Z to its own render
+toggles.
 
 Hackathon-scoped implementation for the Intel Physical AI online challenge:
 two simulated SO-101 arms in MuJoCo, an observable language-to-skill planner,
@@ -189,3 +215,14 @@ boilerplate. Their hardware drivers are not required for this Mac simulation.
 
 See `THIRD_PARTY.md` for provenance. Do not claim Intel hardware results until
 the benchmark JSON is generated on the required Core Ultra Series 2/3 machine.
+
+## Engineering documentation
+
+- [`docs/ARCHITECTURE_AND_DECISIONS.md`](docs/ARCHITECTURE_AND_DECISIONS.md): exact
+  current AI stack, LLM/VLM decision, evidence boundaries, verified competitor-code
+  results, and the next implementation slice.
+- [`docs/PUBLIC_CODE_AUDIT.md`](docs/PUBLIC_CODE_AUDIT.md): public repositories,
+  licenses, reusable ideas, and limitations.
+- [`tasks.md`](tasks.md): sequenced requirements checklist and acceptance criteria.
+- [`AGENTS.md`](AGENTS.md): truth boundaries and instructions for Codex, Claude,
+  OpenCode, or another coding orchestrator.

@@ -1,0 +1,16 @@
+dinner-claw
+Copyright 2026 Manish Shivabhakti
+
+Licensed under the Apache License, Version 2.0. See LICENSE.
+
+This product includes third-party material:
+
+  SO-101 / SO-ARM100 robot models and mesh assets
+  Copyright The Robot Studio, licensed under Apache License 2.0.
+  Vendored unmodified under vendor/so101/, with the upstream licence
+  preserved at vendor/so101/LICENSE. Pinned to commit
+  eecbe3e0a9ebb23e25ad7b2759b03884c6660903 of
+  https://github.com/TheRobotStudio/SO-ARM100
+
+See THIRD_PARTY.md for the full provenance record, including the
+LeRobot, OpenVINO, and MuJoCo dependencies and their licences.

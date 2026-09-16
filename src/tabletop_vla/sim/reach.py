@@ -18,6 +18,9 @@ NAMED_TARGETS = {
     "spoon_mat": [0.32, 0.10, 0.75],
     "mug_mat": [0.27, -0.04, 0.75],
     "handoff": [0.00, -0.05, 0.85],
+    # The bottle is 70 mm across and the jaws open 56.4 mm, so its BODY cannot be
+    # gripped at all; this row is the reach question, not the grasp question.
+    "bottle": [0.28, 0.12, 0.84],
 }
 
 

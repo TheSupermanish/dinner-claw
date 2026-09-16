@@ -13,7 +13,11 @@ import re
 from dataclasses import asdict, dataclass
 
 ALLOWED_SKILLS = {"open_drawer", "pick", "place", "handoff", "pour"}
-ARMS = {"left", "right"}
+# "both" is a real ownership value, not a placeholder. The plate is lifted by two arms
+# gripping opposing rim segments; a single arm grips 94 mm from its centre of mass and
+# only levers it, measured 0/10. A plan that assigns the plate to one arm is wrong and
+# `validate` rejects it.
+ARMS = {"left", "right", "both"}
 
 # Arm ownership is DERIVED FROM MEASUREMENT, not from a naming convention. Every row cites
 # the evidence that fixed it. An earlier version of this file assigned arms by alternating
@@ -30,9 +34,23 @@ OWNERSHIP = {
                "short of spoon_mat; the right arm is 95.6 mm short of the drawer")),
     "mug": ("right", "right",
             "50/50 seeds 200-249, outputs/cup-six-perturbations-200-249.json"),
-    "plate": ("left", "left",
-              ("left-arm reachable per outputs/reach-map-refined-seed30.json; the grasp "
-               "itself is NOT yet possible, 0/10, so this is a plan row, not a capability")),
+    "plate": ("both", "both",
+              ("two-arm rim lift 10/10 on held-out seeds 50-59, 9/10 tuning 40-49, "
+               "open-gripper control 0/4. A SINGLE arm is 0/10: it grips 94 mm from the "
+               "plate's centre of mass, so it levers the plate onto its far rim and six "
+               "of ten seeds never leave the table at all")),
+    # No arm owns the bottle, and the row says so rather than inventing one. Measured
+    # 2026-09-16 over tilt 0-90 by azimuth 0-360 at three heights: the LEFT arm is
+    # 186.7 mm short, so the previous hardcoded `left` for pouring was contradicted by
+    # the geometry. The right arm reaches the bottle's position to 1.2 mm but no
+    # approach axis clears the orientation gate, so it has no accepted grasp pose
+    # either. Pour stays previewable and non-executable.
+    "bottle": ("right", "right",
+               ("nearest arm only, reproduce with `python -m tabletop_vla.sim.reach "
+                "--target bottle`: right reaches position to 0.0012 m but NO approach "
+                "axis is accepted, left is 0.1867 m short, and the 70 mm body exceeds "
+                "the 56.4 mm jaw opening. No grasp pose and no pour skill, so this is "
+                "a plan row, not a capability")),
 }
 
 # Skills with a measured physical success rate on held-out seeds. Everything else may be
@@ -84,7 +102,11 @@ def plan(instruction: str) -> list[Skill]:
             skills.append(Skill("handoff", f"{picker}_to_{placer}", obj, "handoff_zone"))
         skills.append(Skill("place", placer, obj, f"{obj}_mat"))
     if "pour" in text:
-        skills.extend((Skill("pick", "left", "bottle"), Skill("pour", "left", "bottle", "mug")))
+        # Derive the arm from the measured table like every other object. Hardcoding
+        # "left" here asserted an arm that cannot reach the bottle at all.
+        picker, _, _ = OWNERSHIP["bottle"]
+        skills.extend((Skill("pick", picker, "bottle"),
+                       Skill("pour", picker, "bottle", "mug")))
     return validate(skills)
 
 

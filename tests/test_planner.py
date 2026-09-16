@@ -1,6 +1,7 @@
 import pytest
 
 from tabletop_vla.planning.task_planner import (
+    ARMS,
     OWNERSHIP,
     Skill,
     executable_task,
@@ -39,9 +40,40 @@ def test_the_spoon_needs_a_left_to_right_handoff_and_the_fork_does_not():
 
 def test_every_ownership_row_cites_its_evidence():
     for obj, (picker, placer, evidence) in OWNERSHIP.items():
-        assert picker in {"left", "right"}, obj
-        assert placer in {"left", "right"}, obj
-        assert "outputs/" in evidence or "seeds" in evidence, obj
+        # Check against ARMS rather than a hardcoded pair, so adding a legitimate
+        # ownership value does not require editing an unrelated assertion. This test
+        # previously pinned {"left", "right"} and failed when the plate became a
+        # genuine two-arm skill.
+        assert picker in ARMS, obj
+        assert placer in ARMS, obj
+        # Evidence must be reproducible: a results file, a seed range, or a command
+        # someone can run. A row asserting an arm with no way to check it is the
+        # defect this test exists to catch.
+        assert ("outputs/" in evidence or "seeds" in evidence
+                or "python -m" in evidence), obj
+
+
+def test_the_plate_is_owned_by_both_arms_and_one_arm_is_rejected():
+    """A single arm grips the plate 94 mm from its centre of mass and only levers it:
+    measured 0/10, with six of ten seeds never leaving the table. The two-arm lift is
+    10/10 held-out. Ownership has to say so, and a one-arm plate plan has to fail."""
+    picker, placer, evidence = OWNERSHIP["plate"]
+    assert (picker, placer) == ("both", "both")
+    assert "0/10" in evidence and "50-59" in evidence
+    for arm in ("left", "right"):
+        with pytest.raises(ValueError, match="cannot pick"):
+            validate([Skill("pick", arm, "plate")])
+
+
+def test_pour_never_assigns_an_arm_that_cannot_reach_the_bottle():
+    """The pour branch used to hardcode `left`, which measurement contradicts: the left
+    arm is 186.7 mm short of the bottle. The arm must come from the ownership table."""
+    picker, _, evidence = OWNERSHIP["bottle"]
+    assert picker == "right"
+    assert "0.1867" in evidence, "the left arm's shortfall is the reason for this row"
+    arms = {s.arm for s in plan("pour water from the bottle into the mug")
+            if s.object == "bottle"}
+    assert arms == {"right"}
 
 
 def test_validate_rejects_an_arm_that_cannot_do_the_job():

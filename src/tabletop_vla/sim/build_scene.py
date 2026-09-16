@@ -135,7 +135,7 @@ def build_scene(source: Path = SOURCE, output: Path = OUTPUT) -> Path:
     for name, pos, size, rgba in (
         ("plate", "-0.12 0.02 0.752", "0.10 0.004", "0.92 0.92 0.88 1"),
         ("mug", "0.20 -0.06 0.7603", "0.025 0.004", "0.18 0.48 0.86 1"),
-        ("bottle", "0.28 0.12 0.84", "0.035 0.10", "0.25 0.72 0.52 1"),
+        ("bottle", "0.28 0.12 0.800", "0.035 0.065", "0.25 0.72 0.52 1"),
     ):
         body = ET.SubElement(world, "body", {"name": name, "pos": pos})
         ET.SubElement(body, "freejoint")
@@ -168,6 +168,20 @@ def build_scene(source: Path = SOURCE, output: Path = OUTPUT) -> Path:
                     "condim": "4",
                     "friction": "1 0.01 0.001",
                 })
+        if name == "bottle":
+            # A 70 mm-diameter cylinder cannot be gripped: the jaws open 56.4 mm
+            # face-to-face. Measured 2026-09-16, that is why a full tilt/azimuth sweep
+            # found no accepted grasp pose for either arm, and it is the same defect
+            # that made the flat plate and the flat cutlery ungraspable. Real bottles
+            # solve it with a neck, so this one has a neck: 32 mm across, inside the
+            # jaw opening with margin, and standing clear of the shoulder so the pads
+            # close on the neck rather than the body.
+            geom.set("mass", "0.10")
+            ET.SubElement(body, "geom", {
+                "name": "bottle_neck", "type": "cylinder",
+                "pos": "0 0 0.100", "size": "0.016 0.035", "mass": "0.02",
+                "rgba": rgba, "condim": "4", "friction": "1 0.01 0.001",
+            })
         if name == "mug":
             # A miniature square hollow cup: 50 mm width/height, 60 g total mass.
             # Separate convex walls preserve the cavity in MuJoCo contact physics.

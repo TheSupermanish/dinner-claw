@@ -32,6 +32,7 @@ import mujoco
 import numpy as np
 
 from tabletop_vla.sim.cutlery import UNREACHED
+from tabletop_vla.sim.drawer import park_prop
 from tabletop_vla.sim.kinematics import JOINTS, solve_pose
 
 ARMS = ("left", "right")
@@ -70,6 +71,8 @@ def prepare_bimanual_workcell(sim, seed):
     # ends of this carry have to be reachable by both arms or the plate cannot be
     # held level for the whole move.
     sim.model.site_pos[sim.model.site("plate_mat").id] = PLATE_MAT
+    # The bottle has no skill and sits right behind the plate in shot; park it.
+    park_prop(sim, "bottle", "no pour skill exists; bottle is unused in this workcell")
     mujoco.mj_forward(sim.model, sim.data)
     sim.variation["bimanual_plate_workcell"] = {
         "plate_start": start.tolist(),

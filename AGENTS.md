@@ -30,16 +30,19 @@ not executable evidence.
 
 ## Immediate implementation order
 
-1. Build physical fork and spoon retrieval teachers from an already-open drawer.
-2. Build physical plate placement.
-3. Build giver-contact -> receiver-contact -> giver-release -> receiver-lift handoff.
-4. Add ownership tracking, a shared-workspace lock, collision-checked waypoints, and
+1. Add live jaw-face midpoint/closing-axis calibration plus orientation-aware IK.
+2. Build a physical fork retrieval teacher from an already-open drawer, then reuse
+   its state machine for the spoon with separate geometry parameters.
+3. Add achieved-waypoint, torque-saturation, bilateral-contact, lift, and drop gates.
+4. Build physical plate placement.
+5. Build giver-contact -> receiver-contact -> giver-release -> receiver-lift handoff.
+6. Add ownership tracking, a shared-workspace lock, collision-checked waypoints, and
    chain drawer -> cutlery -> plate -> cup without resetting between skills.
-5. Record successful RGB/proprio/action demonstrations with disjoint seed splits.
-6. Train only after teachers pass failure controls and at least ten randomized seeds.
-7. Add a strict schema for language/camera reasoning; do not allow an unreliable VLM
+7. Record successful RGB/proprio/action demonstrations with disjoint seed splits.
+8. Train only after teachers pass failure controls and at least ten randomized seeds.
+9. Add a strict schema for language/camera reasoning; do not allow an unreliable VLM
    to command motors.
-8. Export the selected deployed policy to OpenVINO, verify numerical and closed-loop
+10. Export the selected deployed policy to OpenVINO, verify numerical and closed-loop
    parity, then repeat simulation plus inference on Core Ultra Series 2/3.
 
 Do not spend more time retraining the cup model unless a measured regression justifies
@@ -58,6 +61,8 @@ long as trained-policy and non-trained results are labelled honestly.
   teacher or an independent scorer, with that boundary documented.
 - Require force-bearing bilateral finger contact, sustained lift/pull, stable release,
   and negative controls. Preserve failed reports instead of overwriting them.
+- Never count sequential contact by two arms as a handoff. Require receiver bilateral
+  contact, giver release, receiver lift, and sustained receiver ownership.
 - Reject unsupported language commands completely; never execute a supported prefix
   while silently dropping an unsupported clause.
 - Do not claim Intel validation from Apple hardware.

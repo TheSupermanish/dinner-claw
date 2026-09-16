@@ -9,6 +9,9 @@ import numpy as np
 
 from tabletop_vla.sim.kinematics import JOINTS, solve_down
 
+# The tabletop surface every workcell measures heights against.
+TABLE_TOP = 0.735
+
 
 def prepare_workcell(sim, seed):
     """Configure a reachable cabinet before the episode starts, never during motion."""
@@ -29,11 +32,26 @@ def prepare_workcell(sim, seed):
     # (11-47 N) at every approach angle that reaches the fork, so cutlery retrieval was
     # geometrically impossible. A 0.18 m offset is the smallest swept value at which the
     # gripper reaches the fork with no cabinet contact (0.15 m still jams at 42.9 N).
-    for name, offset in (("left", [-0.147, 0, 0.035]),
-                         ("right", [0.147, 0, 0.035]),
-                         ("back", [0, 0.092, 0.035]),
-                         ("top", [0, 0, 0.18])):
+    #
+    # Raising ONLY the lid left it hovering 89 mm above the side walls, which reads as a
+    # broken model rather than a taller cabinet. The walls are grown to meet it, so the
+    # workcell is an honest tall cabinet the arm reaches into through its open front
+    # instead of a box with a floating slab over it. This ADDS collision geometry where
+    # there was open air, so it is re-measured, not assumed.
+    top_offset = 0.18
+    top_half = float(model.geom_size[model.geom("cabinet_top").id][2])
+    # Walls run from the table surface up to the underside of the lid.
+    wall_bottom = TABLE_TOP - float(center[2])
+    wall_top = top_offset - top_half
+    wall_half = (wall_top - wall_bottom) / 2
+    wall_z = (wall_top + wall_bottom) / 2
+    for name, offset in (("left", [-0.147, 0, wall_z]),
+                         ("right", [0.147, 0, wall_z]),
+                         ("back", [0, 0.092, wall_z]),
+                         ("top", [0, 0, top_offset])):
         model.geom_pos[model.geom(f"cabinet_{name}").id] = center + offset
+    for name in ("left", "right", "back"):
+        model.geom_size[model.geom(f"cabinet_{name}").id][2] = wall_half
     for obj, position in (("plate", [0.0, 0.38, 0.752]),
                           ("fork", center + [-0.045, 0, 0.014]),
                           ("spoon", center + [0.045, 0, 0.014])):
@@ -60,7 +78,9 @@ def prepare_workcell(sim, seed):
     mujoco.mj_setConst(model, data)
     data.qpos[:] = pose
     mujoco.mj_forward(model, data)
-    sim.variation["drawer"] = {"center": center.tolist(), "damping": float(model.dof_damping[vid]),
+    sim.variation["drawer"] = {"center": center.tolist(),
+                               "cabinet_walls_raised_to_meet_lid_m": wall_half * 2,
+                               "damping": float(model.dof_damping[vid]),
                                "slide_friction": float(model.dof_frictionloss[vid]),
                                "mass_scale": mass_scale,
                                "fork_mat_moved_clear_of_drawer": fork_mat.tolist()}

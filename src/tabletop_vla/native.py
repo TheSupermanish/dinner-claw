@@ -92,6 +92,7 @@ def main():
             # The clean look, captured before anything can toggle it. Restored every
             # frame unless --free-visuals, so a stray keypress cannot leave contact
             # arrows or perturbation vectors on screen in front of an audience.
+            paused = False
             pinned = tuple(viewer.opt.flags)
             # Contact-force and perturbation arrows live in `viewer.opt.flags`, which is
             # public. Additive, Fog, Reflection, Shadow, Wireframe and Skybox live in the
@@ -132,18 +133,28 @@ def main():
                         elif key == ord("9"):
                             sim.start_demo(seed)
                         elif key == ord("."):
-                            sim.running = not sim.running
+                            paused = not paused
                         elif key == ord("0"):
                             sim.cancel_demo()
                             sim.reset(seed)
-                            sim.running = True
+                            sim.running, paused = True, False
                             error = None
                         elif key in (ord("-"), ord("=")):
                             seed = max(0, seed + (1 if key == ord("=") else -1))
                             sim.reset(seed)
-                            sim.running = True
+                            sim.running, paused = True, False
                             error = None
-                    if sim.running:
+                    # Keep stepping after the episode ends. Every teacher sets
+                    # `sim.running = False` the moment it succeeds or fails, and the
+                    # viewer used to stop stepping with it, so the last frame FROZE:
+                    # a failed one-arm plate lift stayed propped at 40 degrees looking
+                    # like gravity had been switched off. Physics continues and only the
+                    # user pauses. The finished task's before_step/after_step return
+                    # immediately (runtime.py:237), so nothing steers any more and the
+                    # arm simply holds its last commanded pose. An object that was only
+                    # ever held up by the script now falls, on camera, which is the
+                    # honest thing to show.
+                    if not paused:
                         sim.step(10)
                     demo = sim.demo
                     status = demo["phase"] if demo else "Manual control"
@@ -152,8 +163,10 @@ def main():
                         result = sim.task.state()
                         status = result["status"] + ": " + result["phase"]
                         detail = result["reason"] or _telemetry(result)
-                    if not sim.running:
+                    if paused:
                         status += " (paused)"
+                    elif sim.task is not None and sim.task.status != "running":
+                        status += " (episode over, physics still running)"
                 viewer.set_texts((
                     mujoco.mjtFontScale.mjFONTSCALE_100,
                     mujoco.mjtGridPos.mjGRID_TOPLEFT,

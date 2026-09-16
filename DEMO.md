@@ -91,6 +91,15 @@ cell has two arms. It is kept in the tree deliberately, not hidden.
 Locates the cup from top-camera pixels, then runs the scripted skill. Calibrated
 colour vision and a strict command grammar, **not a VLM**.
 
+### The green cylinder has no demo
+It is the bottle. There is no pour skill, and MuJoCo has no liquid here. It is set
+dressing plus a planner fixture: the rule-based planner will PREVIEW a pour as
+`pick(left, bottle) -> pour(left, bottle)`, and `executable_task` then refuses it,
+because `EXECUTABLE` holds only the three skills with measured held-out rates
+(`camera-cup-place`, `fork-retrieve`, `bimanual-plate-lift`). If someone asks the
+system to pour, it fails closed rather than flailing. That refusal is worth showing
+if the planner comes up, but it lives in the CLI and web console, not this viewer.
+
 ## Full key map
 
 ```
@@ -100,6 +109,19 @@ colour vision and a strict command grammar, **not a VLM**.
 ```
 
 Use the number row, not the numeric keypad: the keypad sends different key codes.
+
+## Physics keeps running after an episode ends
+
+Every teacher stops itself on success or failure. The viewer used to stop stepping
+with it, so the final frame froze: a failed one-arm plate lift stayed propped at 25
+degrees and looked like gravity had been switched off. Physics now continues and only
+`.` pauses it.
+
+That matters for honesty as much as for looks. When the script stops steering, anything
+it was merely holding up falls, on camera. Measured on seed 50 after the one-arm plate
+fails: the plate drops from z 0.780 to 0.770 and relaxes from 24.6 to 18.2 degrees over
+three seconds, and the recorded result stays `failed`. The overlay says
+`(episode over, physics still running)` so nobody mistakes the settling for the task.
 
 ## What the overlay means
 

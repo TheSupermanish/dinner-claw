@@ -87,8 +87,12 @@ The headline. Both arms grip opposing rim segments and carry the plate to its ma
 
 Overlay reads:
 ```
-Lift 8.1 cm | Tilt 13.5 deg of 15 | 4-pad 3.20 s | Place error 20.7 mm
+Lift 5.9 cm | Tilt 12.3 deg of 15 | 4-pad 9.11 s | Place error 24.9 mm
 ```
+That line is seed 50 from `outputs/regression-2026-09-16/bimanual-50-59.json`.
+Across the held-out ten the peak lift is 57-60 mm and the peak tilt while airborne is
+12.3-13.8 degrees.
+
 Point at **Tilt**. That is what makes this a lift rather than a lever, and it is a
 success condition: over 15 degrees at any airborne moment and the episode fails.
 

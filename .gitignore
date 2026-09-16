@@ -7,6 +7,17 @@ models/*.onnx
 models/openvino/
 outputs/*
 !outputs/.gitkeep
+# The submission assets and the scripts that generate them are tracked; every other
+# run output stays out of the tree.
+!outputs/submission/
+outputs/submission/*
+!outputs/submission/cover.py
+!outputs/submission/compose.py
+!outputs/submission/slides.html
+!outputs/submission/cover.png
+!outputs/submission/cover-az90.png
+!outputs/submission/cover-az300.png
+!outputs/submission/slides.pdf
 
 .agent-logs/
 .gstack/

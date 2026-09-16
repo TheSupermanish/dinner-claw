@@ -1,0 +1,388 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<title>Dinner Claw</title>
+<style>
+  @page { size: 13.333in 7.5in; margin: 0; }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; padding: 0; background: #0d1014; }
+  body {
+    font-family: "Helvetica Neue", Helvetica, Arial, sans-serif;
+    -webkit-print-color-adjust: exact; print-color-adjust: exact;
+  }
+  .slide {
+    width: 1280px; height: 720px; position: relative; overflow: hidden;
+    background: #0d1014; color: #eef1f4; padding: 60px 72px 104px;
+    page-break-after: always; break-after: page; display: flex;
+    flex-direction: column;
+  }
+  .slide:last-child { page-break-after: auto; break-after: auto; }
+  .kicker {
+    font-size: 17px; letter-spacing: 3px; text-transform: uppercase;
+    color: #f7c72b; font-weight: 700; margin-bottom: 18px;
+  }
+  h1 { font-size: 86px; line-height: 1.02; margin: 0 0 20px; font-weight: 800; }
+  h2 { font-size: 46px; line-height: 1.12; margin: 0 0 26px; font-weight: 700; }
+  p  { font-size: 25px; line-height: 1.46; margin: 0 0 18px; color: #cdd4db; }
+  p.lead { font-size: 29px; color: #eef1f4; }
+  ul { margin: 0; padding-left: 26px; }
+  li { font-size: 24px; line-height: 1.5; margin-bottom: 14px; color: #cdd4db; }
+  li b, p b { color: #ffffff; }
+  .num { color: #f7c72b; font-weight: 800; }
+  table { width: 100%; border-collapse: collapse; font-size: 22px; }
+  th {
+    text-align: left; font-size: 15px; letter-spacing: 2px; text-transform: uppercase;
+    color: #8c98a4; padding: 0 14px 10px 0; border-bottom: 1px solid #2a323b;
+  }
+  td { padding: 13px 14px 13px 0; border-bottom: 1px solid #1c232a; color: #cdd4db; }
+  td.hit { color: #ffffff; font-weight: 700; }
+  .cols { display: flex; gap: 46px; flex: 1; }
+  .cols > div { flex: 1; }
+  .card {
+    background: #161c23; border-left: 4px solid #f7c72b; padding: 22px 26px;
+    margin-bottom: 18px;
+  }
+  .card .big { font-size: 40px; font-weight: 800; color: #ffffff; }
+  .card .cap { font-size: 19px; color: #9aa6b2; margin-top: 4px; }
+  .foot {
+    position: absolute; left: 72px; bottom: 34px; right: 72px;
+    font-size: 16px; color: #6f7c88;
+    border-top: 1px solid #1c232a; padding-top: 14px;
+  }
+  .full { position: absolute; inset: 0; width: 1280px; height: 720px; object-fit: cover; }
+  .shade {
+    position: absolute; inset: 0;
+    background: linear-gradient(90deg, rgba(8,10,13,.93) 0%, rgba(8,10,13,.80) 46%, rgba(8,10,13,.12) 100%);
+  }
+  .over { position: relative; z-index: 2; }
+  .half { width: 470px; border-radius: 6px; margin-top: 6px; }
+  .warn { border-left-color: #e2574c; }
+  .warn .big { color: #ff8a7e; }
+</style>
+
+<!-- 1 -->
+<section class="slide" style="padding:0">
+  <img class="full" src="cover-az90.png">
+  <div class="shade"></div>
+  <div class="over" style="padding:96px 72px">
+    <div class="kicker">Intel Physical AI Online Challenge</div>
+    <h1>Dinner&nbsp;Claw</h1>
+    <p class="lead" style="max-width:660px">
+      Two simulated SO-101 arms doing tabletop work in MuJoCo, where success is a
+      physical postcondition and never "the script finished".
+    </p>
+    <p style="font-size:20px;color:#8c98a4;margin-top:44px">
+      github.com/TheSupermanish/dinner-claw &nbsp;|&nbsp; Apache-2.0 &nbsp;|&nbsp; measured 2026-09-16
+    </p>
+  </div>
+</section>
+
+<!-- 2 -->
+<section class="slide">
+  <div class="kicker">The argument for two arms</div>
+  <h2>One arm cannot lift a plate. It levers it.</h2>
+  <div class="cols">
+    <div>
+      <p>A single gripper pinches the rim <b>94&nbsp;mm</b> from the plate's centre of
+      mass, so it applies almost pure torque. The plate tips up on its far rim, the
+      centre height rises, and the plate never leaves the table.</p>
+      <p>That single-arm teacher is <b>kept in the tree at 0/10</b> and runs in the demo
+      on its own hotkey. It is the evidence for the whole design, not a result to hide.</p>
+    </div>
+    <div>
+      <div class="card warn">
+        <div class="big">0 / 10</div>
+        <div class="cap">one arm, seeds 40-49</div>
+      </div>
+      <div class="card">
+        <div class="big">9 / 10</div>
+        <div class="cap">two arms, held-out seeds 50-59</div>
+      </div>
+      <div class="card">
+        <div class="big">6 of 10</div>
+        <div class="cap">single-arm seeds where the plate never left the table at all</div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">outputs/regression-2026-09-16/plate1arm-40-49.json, bimanual-50-59.json</div>
+</section>
+
+<!-- 3 -->
+<section class="slide">
+  <div class="kicker">Measured, full regression 2026-09-16</div>
+  <h2>Five physical skills, each with a negative control</h2>
+  <table>
+    <tr><th>Skill</th><th>Arms</th><th>Seeds</th><th>Result</th><th>Open-gripper control</th></tr>
+    <tr><td>Drawer open</td><td>left</td><td>30-39 held-out</td><td class="hit">10/10</td><td>0/3</td></tr>
+    <tr><td>Drawer then fork, one episode, no reset</td><td>left</td><td>40-49 held-out</td><td class="hit">10/10</td><td>0/3</td></tr>
+    <tr><td><b>Plate lift, two arms</b></td><td>both</td><td>50-59 held-out</td><td class="hit">9/10</td><td>0/4</td></tr>
+    <tr><td>Cup place, scripted teacher</td><td>right</td><td>200-209</td><td class="hit">10/10</td><td>0/3</td></tr>
+    <tr><td>Cup place, camera-guided</td><td>right</td><td>500-549</td><td class="hit">50/50</td><td></td></tr>
+    <tr><td>Plate lift, ONE arm</td><td>left</td><td>40-49</td><td class="hit">0/10</td><td>kept deliberately</td></tr>
+  </table>
+  <p style="margin-top:22px;font-size:23px">Say <b>9/10</b> for the two-arm lift, not 10/10. Across every
+  configuration measured it lifts and carries level on 20 of 20 seeds and fails the
+  RELEASE on 2, and which seed fails moves when unrelated parts of the scene change.</p>
+  <div class="foot">81 pytest tests pass, ruff clean. Every number above reproduces from outputs/regression-2026-09-16/</div>
+</section>
+
+<!-- 4 -->
+<section class="slide">
+  <div class="kicker">What "success" means here</div>
+  <h2>A gate the robot has to pass with physics</h2>
+  <div class="cols">
+    <div>
+      <ul>
+        <li><b>Force-bearing contact</b> from the named gripper pads, read through
+        <code>mj_contactForce</code>, not proximity.</li>
+        <li><b>Sustained lift</b> with nothing outside the robot bearing the weight, so a
+        plate still resting on the table cannot score.</li>
+        <li><b>Stable release</b> at resting height after the gripper opens.</li>
+        <li><b>Levelness</b>, for the two-arm lift: over <b>15 degrees</b> at any airborne
+        moment and the episode fails.</li>
+      </ul>
+    </div>
+    <div>
+      <p>No welds, no teleports, no raised motor force limits, and the drawer joint is
+      never driven directly. Workcell setup happens only before an episode and is
+      declared in the result.</p>
+      <p>Failed episodes are preserved and labelled, not deleted.</p>
+      <div class="card">
+        <div class="big">4 defects</div>
+        <div class="cap">found by adversarial review of these gates, each a gate that was
+        necessary but not sufficient. All four fixed before this deck.</div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">The gates live in the task classes; the mutation tests in tests/ each name the production line they cover</div>
+</section>
+
+<!-- 5 -->
+<section class="slide">
+  <div class="kicker">The cooperative action</div>
+  <h2>Two arms cancel the torque one arm creates</h2>
+  <div class="cols">
+    <div style="flex:1.05">
+      <p>Both arms close on <b>opposing rim segments</b>, 188&nbsp;mm apart. The two
+      contact wrenches cancel about the plate's centre, so the net action is a lift
+      rather than a pivot.</p>
+      <p>The plate then travels to a mat inside the two-arm overlap and is released
+      standing.</p>
+      <ul>
+        <li>Peak lift <b>57-60&nbsp;mm</b>, peak tilt while airborne <b>12.3-13.8 deg</b>,
+        across the ten held-out seeds</li>
+        <li>Four-pad force-bearing contact <b>9.1&nbsp;s</b>, of which <b>4.6&nbsp;s</b>
+        airborne and level</li>
+        <li>Released on the mat within <b>4-25&nbsp;mm</b> of its centre</li>
+      </ul>
+    </div>
+    <div>
+      <img class="half" src="cover-az300.png">
+      <p style="font-size:17px;color:#8c98a4;margin-top:10px">Real captured frame, seed 50,
+      at the instant the episode's own gate reports the plate airborne and level.</p>
+    </div>
+  </div>
+  <div class="foot">src/tabletop_vla/sim/bimanual_plate.py</div>
+</section>
+
+<!-- 6 -->
+<section class="slide">
+  <div class="kicker">Negative controls</div>
+  <h2>Every skill has a run that must score zero</h2>
+  <div class="cols">
+    <div>
+      <p>The same teacher runs with the grippers <b>held open</b>. If it still scores, the
+      gate was measuring the script, not the robot.</p>
+      <p class="lead"><b class="num">0</b> successes across all four controls, and each
+      one is rejected at its <b>first</b> physical gate rather than drifting to a later
+      failure with the same status.</p>
+    </div>
+    <div>
+      <div class="card">
+        <div class="big">drawer 0/3</div>
+        <div class="cap">rejected at the handle pull</div>
+      </div>
+      <div class="card">
+        <div class="big">fork 0/3</div>
+        <div class="cap">rejected at the grasp</div>
+      </div>
+      <div class="card">
+        <div class="big">plate 0/4</div>
+        <div class="cap">rejected at the four-pad close gate</div>
+      </div>
+      <div class="card">
+        <div class="big">cup 0/3</div>
+        <div class="cap">rejected at the grasp</div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">The test suite asserts the PHASE each control dies in, so a disabled gate fails the suite instead of passing it</div>
+</section>
+
+<!-- 7 -->
+<section class="slide">
+  <div class="kicker">Chaining without a reset</div>
+  <h2>The fork comes out of the drawer the robot just opened</h2>
+  <div class="cols">
+    <div>
+      <p>One episode, no reset between skills, no weld, no teleport. The drawer stage
+      must first travel <b>at least 8.5&nbsp;cm</b> through a verified bilateral handle
+      pull, and then stay open with the <b>whole arm off the whole drawer</b>: an arm
+      leaning on the drawer front fails the gate.</p>
+      <p>Only then does the fork retrieval run, and it depends on the physical state the
+      first half produced.</p>
+    </div>
+    <div>
+      <div class="card">
+        <div class="big">10 / 10</div>
+        <div class="cap">held-out seeds 40-49, drawer then fork in one episode</div>
+      </div>
+      <div class="card">
+        <div class="big">9.9 cm</div>
+        <div class="cap">typical drawer travel, against an 8.5 cm bound</div>
+      </div>
+      <div class="card">
+        <div class="big">46 s</div>
+        <div class="cap">wall-clock at 1.0x realtime, the longest skill in the demo</div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">outputs/regression-2026-09-16/fork-40-49.json</div>
+</section>
+
+<!-- 8 -->
+<section class="slide">
+  <div class="kicker">Perception and planning</div>
+  <h2>Calibrated vision, and a planner that fails closed</h2>
+  <div class="cols">
+    <div>
+      <p><b>Camera-guided cup place: 50/50.</b> The cup is located from top-camera pixels
+      by calibrated colour segmentation, and the skill runs from that estimate. The
+      policy is given no object poses.</p>
+      <p><b>The planner is a deterministic grammar</b>, not a VLM. It previews a skill
+      sequence, derives which arm owns each object from the measured ownership table,
+      and then refuses to execute anything without a measured held-out success rate.</p>
+      <p>Ask it to pour and it previews <code>pick(right, bottle) -&gt; pour(right, bottle)</code>
+      and then declines to run it. Failing closed is the feature.</p>
+    </div>
+    <div>
+      <div class="card">
+        <div class="big">50 / 50</div>
+        <div class="cap">camera-guided cup place, seeds 500-549</div>
+      </div>
+      <div class="card warn">
+        <div class="big">Not a VLM</div>
+        <div class="cap">SmolVLM's local scene descriptions were unreliable and it issues
+        no motor commands, so it drives nothing in this system.</div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">src/tabletop_vla/planning/task_planner.py; every ownership row cites reproducible evidence, enforced by a test</div>
+</section>
+
+<!-- 9 -->
+<section class="slide">
+  <div class="kicker">Learning and the Intel toolchain</div>
+  <h2>ACT trained locally, exported to OpenVINO</h2>
+  <div class="cols">
+    <div>
+      <ul>
+        <li><b>LeRobot 0.6.0 ACT</b>, frozen pretrained ResNet18, RGB plus 12 joint
+        positions, 20-action chunks.</li>
+        <li>Normalization from training episodes only; validation and test seeds cannot
+        overlap training.</li>
+        <li>Exported to <b>OpenVINO FP32</b> and running locally, past numerical parity
+        fixtures.</li>
+        <li>The <b>FP16 candidate failed parity and is rejected.</b> INT8 is not done.</li>
+      </ul>
+      <p>The demo still runs the proven teacher. A learned policy gets promoted when its
+      held-out physical rollouts justify it, not when its offline loss looks good.</p>
+    </div>
+    <div>
+      <div class="card warn">
+        <div class="big">No Intel result</div>
+        <div class="cap">Everything here ran on Apple silicon. Mac CPU inference numbers
+        are diagnostics and are not challenge results. The qualifying Core Ultra Series
+        2/3 run has not happened.</div>
+      </div>
+    </div>
+  </div>
+  <div class="foot">Do not quote an Intel latency or throughput figure from this project. There isn't one.</div>
+</section>
+
+<!-- 10 -->
+<section class="slide">
+  <div class="kicker">What is not done</div>
+  <h2>The honest half of the scoreboard</h2>
+  <div class="cols">
+    <div>
+      <ul>
+        <li><b>Pouring.</b> The bottle now has a graspable 32&nbsp;mm neck, and a
+        kinematic probe found <b>17 graspable bottle poses</b> with viable bottle/mug
+        pairs up to 216&nbsp;mm apart. There is still no pour skill, and MuJoCo has no
+        liquid in this scene.</li>
+        <li><b>The spoon handoff.</b> Gates are wired and demand a measured receiver
+        lift, but no passing run exists.</li>
+        <li><b>Chaining beyond drawer to fork.</b> The full dinner-table sequence is not
+        implemented.</li>
+        <li><b>INT8 quantization</b> and the <b>Intel Core Ultra run</b>.</li>
+      </ul>
+    </div>
+    <div>
+      <div class="card">
+        <div class="big">17 poses</div>
+        <div class="cap">bottle neck grasps found by the probe, position error under
+        1.6&nbsp;mm. Feasible is not implemented.</div>
+      </div>
+      <p style="font-size:21px">A gate with no passing run behind it is listed here, not
+      on the results slide.</p>
+    </div>
+  </div>
+  <div class="foot">outputs/regression-2026-09-16/pour.txt</div>
+</section>
+
+<!-- 11 -->
+<section class="slide">
+  <div class="kicker">Live demo</div>
+  <h2>Native MuJoCo viewer, nothing stage-managed</h2>
+  <div class="cols">
+    <div>
+      <p><code style="font-size:22px">uv run mjpython -m tabletop_vla.native --seed 0</code></p>
+      <ul>
+        <li><b>1</b> drawer &nbsp; <b>2</b> drawer then fork &nbsp; <b>3</b> two-arm plate</li>
+        <li><b>4</b> one-arm plate, which fails on purpose &nbsp; <b>5</b> camera cup</li>
+        <li><b>0</b> reset &nbsp; <b>.</b> pause &nbsp; <b>-</b> / <b>=</b> change seed live</li>
+      </ul>
+      <p>Physics keeps stepping after an episode ends, so anything the script was merely
+      holding up falls on camera. That is deliberate.</p>
+    </div>
+    <div>
+      <div class="card">
+        <div class="big">Seed 0</div>
+        <div class="cap">passes all four skills, verified end to end</div>
+      </div>
+      <div class="card">
+        <div class="big">1.0x</div>
+        <div class="cap">realtime, no speed-up in the recording</div>
+      </div>
+      <p style="font-size:20px">If a skill fails live, the overlay's failure reason is the
+      real output and gets read out as-is.</p>
+    </div>
+  </div>
+  <div class="foot">Hotkeys are digits: MuJoCo binds every letter A-Z to one of its own render toggles</div>
+</section>
+
+<!-- 12 -->
+<section class="slide" style="justify-content:center">
+  <div class="kicker">Dinner Claw</div>
+  <h1 style="font-size:64px">Two arms, five gated skills,<br>and a scoreboard that includes the zeros.</h1>
+  <p class="lead" style="max-width:900px">
+    github.com/TheSupermanish/dinner-claw &nbsp;&middot;&nbsp; Apache-2.0 &nbsp;&middot;&nbsp;
+    MuJoCo 3.13.0, LeRobot ACT, OpenVINO &nbsp;&middot;&nbsp; SO-101 arms
+  </p>
+  <p style="font-size:20px;color:#8c98a4">
+    Every figure in this deck reproduces from <code>outputs/regression-2026-09-16/</code>
+    on Apple silicon. No Intel hardware result exists yet.
+  </p>
+</section>
+</html>

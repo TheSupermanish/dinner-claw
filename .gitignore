@@ -21,3 +21,4 @@ outputs/submission/*
 
 .agent-logs/
 .gstack/
+.DS_Store

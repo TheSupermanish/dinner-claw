@@ -14,7 +14,7 @@ dependencies = [
 intel = ["openvino>=2025.2", "nncf>=2.18"]
 train = ["lerobot[dataset]==0.6.0"]
 reasoning = ["transformers>=5.3,<6"]
-dev = ["pytest>=8,<9", "ruff>=0.12,<1"]
+dev = ["pytest>=9.0.3,<10", "ruff>=0.12,<1"]
 
 [project.scripts]
 tabletop-build-scene = "tabletop_vla.sim.build_scene:main"
